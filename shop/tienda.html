@@ -2747,6 +2747,7 @@ document.addEventListener("change",e=>{const t=e.target.closest("[data-cltransfe
 let DEL_ORDER=null;
 const moneyIn=(id,v)=>`<input type="number" step="0.01" min="0" id="${id}" value="${(+v||0).toFixed(2)}">`;
 const LINE_ITEMS=[];
+function autoCostLabel(it){const c=itemCost({...it,free:false,cost:null}),q=+it.qty||1;return c.unknown.length?"coste/ud":"auto "+(r2((c.garment+c.dtf+c.vinyl)/q)).toFixed(2).replace(".",",")}
 function lineMock(it,uid){return `<span class="fmock">${["front","back"].filter(sd=>sd==="front"||(it.design.els||[]).some(e=>e.side==="back")||(it.design.team&&it.design.team.on)).map(sd=>`<span class="mini">${designMock(it,sd,uid+sd)}</span>`).join("")}</span>`}
 function freeRowHTML(l,pre){const it=l.li!=null?LINE_ITEMS[l.li]:null;return `<div class="frow${it?" hasitem":""}" data-frow${it?` data-li="${l.li}"`:""}>
   ${it?`<div class="fitem">${lineMock(it,"fl"+l.li)}<small class="dim">${esc((it.parts||[]).join(" · "))}</small></div>`:""}
@@ -2754,7 +2755,7 @@ function freeRowHTML(l,pre){const it=l.li!=null?LINE_ITEMS[l.li]:null;return `<d
   <input type="text" data-f="sizes" placeholder="Tallas (opcional)" value="${esc(l.sizes||"")}" aria-label="Tallas">
   <input type="number" min="0" step="1" data-f="qty" value="${l.qty||1}" aria-label="Unidades">
   <input type="number" min="0" step="0.01" data-f="unit" value="${l.unit!=null?(+l.unit).toFixed(2):""}" placeholder="€/ud" aria-label="Precio por unidad con IVA">
-  <input type="number" min="0" step="0.01" data-f="cost" value="${l.cost!=null?(+l.cost).toFixed(2):""}" placeholder="coste/ud" title="Tu coste por unidad sin IVA (no lo ve el cliente)" aria-label="Coste por unidad">
+  <input type="number" min="0" step="0.01" data-f="cost" value="${l.cost!=null?(+l.cost).toFixed(2):""}" placeholder="${it?autoCostLabel(it):"coste/ud"}" title="${it?"Vacío = se calcula solo (prenda del proveedor + DTF/vinilo). Escribe un valor solo si quieres fijarlo a mano.":"Tu coste por unidad sin IVA (no lo ve el cliente)"}" aria-label="Coste por unidad">
   <span class="mono" data-f="tot">${eur((+l.qty||0)*(+l.unit||0))}</span>
   <button class="x" type="button" data-frm aria-label="Quitar línea">×</button></div>`}
 function readFree(root){return [...root.querySelectorAll("[data-frow]")].map(r=>({desc:r.querySelector('[data-f=desc]').value.trim(),sizes:r.querySelector('[data-f=sizes]').value.trim(),qty:+r.querySelector('[data-f=qty]').value||0,unit:+r.querySelector('[data-f=unit]').value||0,cost:r.querySelector('[data-f=cost]').value===""?null:+r.querySelector('[data-f=cost]').value,li:r.dataset.li!=null?+r.dataset.li:null,item:r.dataset.li!=null?LINE_ITEMS[+r.dataset.li]:null})).filter(l=>l.desc&&l.qty>0)}
