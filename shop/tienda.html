@@ -400,7 +400,8 @@ tr.cathead td{background:var(--surface-2);font-weight:700;font-size:13px;letter-
 .layer img{display:block;width:100%;height:auto;pointer-events:none}
 .ruler{display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:10px;color:var(--muted);max-width:520px;margin:6px auto 0;border-top:1px solid var(--line);padding-top:3px}
 .hint{font-size:12px;color:var(--muted);text-align:center;margin-top:6px}
-form.step>.field{flex:none}
+form.step>.field,#addrBox>.field,#addrBox>.row{flex:none}
+[hidden]{display:none!important}
 .gallery{display:flex;gap:6px;overflow-x:auto;margin-top:10px;padding-bottom:2px}
 .gthumb{flex:none;width:58px;height:64px;padding:0;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;overflow:hidden}
 .gthumb img{width:100%;height:100%;object-fit:contain}
@@ -1777,6 +1778,9 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape"){$("#drawerRoot").in
 /* ============ CHECKOUT ============ */
 const CO={ship:"tienda",pay:"card",invoice:false};
 function shipCost(){return CO.ship==="tienda"?0:(cartTotal()>=FREE_SHIP?0:SHIPPING)}
+document.addEventListener("click",e=>{const r=e.target.closest("[data-corm]");if(!r)return;
+  cart=cart.filter(i=>i.id!==r.dataset.corm);saveCart();updateCount();
+  if(!cart.length){$("#sheetRoot").innerHTML="";openDrawer();return}keepAndReopen()});
 function canTransfer(){if(!SESSION)return false;const c=allClients()[SESSION.key];return !!(c&&c.transfer)}
 function openCheckout(){if(CO.pay==="transfer"&&!canTransfer())CO.pay="card";
   const maxDays=Math.max(...cart.map(i=>i.days)), eta=etaFrom(maxDays+(CO.ship==="envio"?1:0));
@@ -1809,7 +1813,7 @@ function openCheckout(){if(CO.pay==="transfer"&&!canTransfer())CO.pay="card";
     </div>
     <aside style="display:flex;flex-direction:column;gap:12px;position:sticky;top:16px">
       <div class="step"><div class="step-h"><h3>Tu pedido</h3><span class="aside">${cart.reduce((a,i)=>a+i.qty,0)} ud</span></div>
-        ${cart.map(i=>`<div class="coitem"><div class="row" style="justify-content:space-between;align-items:flex-start;gap:8px"><span style="min-width:0;flex:1"><b>${esc(i.name)}</b><br><small style="color:var(--muted)">${colorLabel(i.color)} · ${esc(i.sizes)}</small></span><b class="mono">${eur(i.total)}</b></div>${itemDetail(i,true)}</div>`).join("")}
+        ${cart.map(i=>`<div class="coitem"><div class="row" style="justify-content:space-between;align-items:flex-start;gap:8px"><span style="min-width:0;flex:1"><b>${esc(i.name)}</b><br><small style="color:var(--muted)">${colorLabel(i.color)} · ${esc(i.sizes)}</small></span><span class="row" style="gap:6px;flex:none"><b class="mono">${eur(i.total)}</b><button class="x" type="button" data-corm="${i.id}" aria-label="Quitar ${esc(i.name)} del pedido" title="Quitar del pedido">×</button></span></div>${itemDetail(i,true)}</div>`).join("")}
       </div>
       <div class="till">
         <div class="lines"><span>Productos</span><span>${eur(cartTotal())}</span><span>Entrega</span><span id="coShip">${shipCost()?eur(shipCost()):"Gratis"}</span></div>
