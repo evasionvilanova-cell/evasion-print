@@ -400,6 +400,23 @@ tr.cathead td{background:var(--surface-2);font-weight:700;font-size:13px;letter-
 .layer img{display:block;width:100%;height:auto;pointer-events:none}
 .ruler{display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:10px;color:var(--muted);max-width:520px;margin:6px auto 0;border-top:1px solid var(--line);padding-top:3px}
 .hint{font-size:12px;color:var(--muted);text-align:center;margin-top:6px}
+.gallery{display:flex;gap:6px;overflow-x:auto;margin-top:10px;padding-bottom:2px}
+.gthumb{flex:none;width:58px;height:64px;padding:0;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;overflow:hidden}
+.gthumb img{width:100%;height:100%;object-fit:contain}
+.gthumb:hover,.gthumb:focus-visible{border-color:var(--ink)}
+.galbox{position:fixed;inset:0;z-index:300;background:rgba(10,11,14,.86);display:grid;place-items:center;padding:16px}
+.galbox img{max-width:min(92vw,900px);max-height:84vh;background:#fff;border-radius:6px}
+.galbox .x{position:absolute;top:12px;right:14px;color:#fff;font-size:30px;background:none;border:0;cursor:pointer}
+.galbox .gnav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;border:0;background:rgba(255,255,255,.9);font-size:28px;line-height:1;cursor:pointer}
+.galbox .prev{left:12px}.galbox .next{right:12px}
+.galbox .gcount{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);color:#fff;font:600 13px var(--f-mono)}
+.ficha{margin-top:14px}.ficha>p{font-family:var(--f-body,inherit);font-size:14px;line-height:1.5}.ficha .label{margin-top:10px}.ficha summary{cursor:pointer;list-style:none}.ficha summary::-webkit-details-marker{display:none}
+.fdl{display:grid;grid-template-columns:max-content 1fr;gap:6px 14px;margin:0;font-size:14px}
+.fdl dt{color:var(--muted)}.fdl dd{margin:0}
+.fobs{margin:0;padding-left:18px;font-size:14px;display:grid;gap:3px}
+.fmeas{display:flex;flex-wrap:wrap;gap:6px}.fmeas span{border:1px solid var(--line);border-radius:6px;padding:4px 8px;font:12px var(--f-mono);display:flex;gap:6px}
+.supviews{display:flex;gap:8px;flex-wrap:wrap}.supviews figure{margin:0;width:96px;font-size:11px;text-align:center}.supviews img{width:96px;height:106px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:6px}
+.fwash{display:flex;gap:8px;flex-wrap:wrap}.fwash img{width:30px;height:30px;object-fit:contain}
 
 .panel{display:flex;flex-direction:column;gap:12px;min-width:0}
 .step{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
@@ -686,6 +703,7 @@ footer{background:var(--surface);margin-top:40px}
     </div>
     <div class="ruler" aria-hidden="true"><span>0</span><span>10</span><span>20</span><span>30</span><span>40</span><span>50</span><span>65 cm</span></div>
     <p class="hint">Arrastra el logo o el texto para colocarlo. Nombres y números van en su posición reglamentaria.</p>
+    <div class="gallery" id="pGallery" hidden></div>
   </div>
 
   <div class="panel">
@@ -745,8 +763,10 @@ footer{background:var(--surface);margin-top:40px}
     </section>
 
     <section class="till" id="till" aria-live="polite"></section>
+    <div id="pInfo"></div>
   </div>
 </main>
+<div id="galBox"></div>
 
 <div class="mbar" id="mbar"><div><b id="mTotal">0 €</b><small id="mUnit"></small></div><button class="btn" type="button" id="mAdd">Añadir al carrito</button></div>
 </div>
@@ -956,8 +976,10 @@ function photoFor(p,code,side){
 }
 let REMOTE_OK=false;
 function testRemote(){const p=PRODUCTS.find(x=>x.remote&&Object.keys(x.remote).length);if(!p)return;const url=Object.values(p.remote)[0];
-  const im=new Image();im.onload=()=>{REMOTE_OK=true;renderCats();if(!$("#config").hidden)renderCanvas()};im.onerror=()=>{REMOTE_OK=false};im.src=url}
+  const im=new Image();im.onload=()=>{REMOTE_OK=true;renderCats();if(!$("#config").hidden){renderCanvas();renderGallery();const pi=$("#pInfo");if(pi)pi.innerHTML=fichaHTML(S.product)}};im.onerror=()=>{REMOTE_OK=false};im.src=url}
 function prodSVG(p,color,side,uid){
+  if(REMOTE_OK&&side==="back"&&p&&p.backView&&!photoFor(p,colorCode(color),side)){const u=backRemote(p,colorCode(color));
+    if(u)return `<image href="${esc(u)}" x="0" y="0" width="400" height="440" preserveAspectRatio="xMidYMid meet"/>`}
   if(REMOTE_OK&&side==="front"&&p&&p.remote&&!photoFor(p,colorCode(color),side)){const u=p.remote[colorCode(color)];
     if(u)return `<image href="${esc(u)}" x="0" y="0" width="400" height="440" preserveAspectRatio="xMidYMid meet"/>`}
   const hex=COLORS[color][1], f=photoFor(p,colorCode(color),side);
@@ -1329,7 +1351,7 @@ function renderColors(){
   const tech="DTF a todo color o vinilo a un color";
   $("#pMeta").innerHTML=`<span class="note">Prenda: <b class="mono">${eur(S.product.price)}</b>/ud · ${tech} · 2XL y 3XL +${eur(BIG_SURCHARGE)}</span>`;
 }
-$("#gColors").addEventListener("click",e=>{const b=e.target.closest("[data-c]");if(!b)return;S.color=b.dataset.c;renderColors();renderEls();renderCats()});
+$("#gColors").addEventListener("click",e=>{const b=e.target.closest("[data-c]");if(!b)return;S.color=b.dataset.c;renderColors();renderEls();renderCats();renderGallery()});
 
 /* ============ PASO 2: diseño ============ */
 const PLACES={
@@ -2494,7 +2516,9 @@ const IMP_FAM={"CAMISETAS":"Camisetas y polos","POLOS":"Camisetas y polos","CAMI
   "CONJUNTOS DEPORTIVOS":"Sport collection","CHANDALS":"Sport collection","ROPA DEPORTIVA":"Sport collection","PETOS DEPORTIVOS":"Sport collection","ALTA VISIBILIDAD":"Ropa laboral"};
 const IMP_COLS={ref:["MODELCODE","REFERENCIA","MODELO"],name:["MODELNAME","NOMBRE"],desc:["DESCRIPTION","DESCRIPCION","DESCRIPCIÓN"],fam:["FAMILIE","FAMILIA"],cats:["CATEGORIES","CATEGORIAS","CATEGORÍAS"],
   size:["SIZE","TALLA"],sizeCode:["SIZECODE","CODIGO TALLA"],color:["COLOR"],colorCode:["COLORCODE","CODIGO COLOR"],price:["PRICE UNIT","PRECIO","PRECIO UNIDAD"],
-  img:["PRODUCTIMAGE","IMAGEN"],imgModel:["MODELIMAGE","IMAGEN MODELO"],gender:["GENDER","GENERO","GÉNERO"],novelty:["ISNOVELTY","NOVEDAD"],outlet:["ISOUTLET","OUTLET"],comp:["COMPOSITION","COMPOSICION","COMPOSICIÓN"]};
+  img:["PRODUCTIMAGE","IMAGEN"],imgModel:["MODELIMAGE","IMAGEN MODELO"],gender:["GENDER","GENERO","GÉNERO"],novelty:["ISNOVELTY","NOVEDAD"],outlet:["ISOUTLET","OUTLET"],comp:["COMPOSITION","COMPOSICION","COMPOSICIÓN"],
+  obs:["OBSERVATION","OBSERVACIONES"],pack:["UNITSPACK","UNIDADES PACK"],box:["UNITSBOX","UNIDADES CAJA"],taric:["TARIC_CODE","TARIC"],origin:["MADE_IN","ORIGEN"],
+  measures:["MEASURES","MEDIDAS"],wash:["WASHICONIMAGES","ICONOS LAVADO"]};
 let IMP=null; // {rows, cols, models}
 const titleCase=t=>String(t||"").toLowerCase().replace(/(^|[\s\/(-])(\p{L})/gu,(m,a,b)=>a+b.toUpperCase());
 function loadSheetJS(){return new Promise((ok,ko)=>{if(window.XLSX)return ok();const sc=document.createElement("script");sc.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";sc.onload=ok;sc.onerror=()=>ko(new Error("No se ha podido cargar el lector de Excel."));document.head.appendChild(sc)})}
@@ -2540,7 +2564,9 @@ function buildImport(data,opt){
   const models=new Map();
   rows.forEach(r=>{const ref=g(r,"ref");if(!ref)return;let m=models.get(ref);
     if(!m){m={ref,name:g(r,"name"),desc:g(r,"desc"),fam:g(r,"fam").toUpperCase(),cats:g(r,"cats").split(",").map(x=>x.trim()).filter(Boolean),comp:g(r,"comp"),gender:g(r,"gender"),
-      colors:new Map(),sizes:new Map(),prices:{},cost:Infinity,novelty:false,outlet:false,img:{},imgModel:{}};models.set(ref,m)}
+      colors:new Map(),sizes:new Map(),prices:{},cost:Infinity,novelty:false,outlet:false,img:{},imgModel:{},
+      obs:g(r,"obs"),pack:g(r,"pack"),box:g(r,"box"),taric:g(r,"taric"),origin:g(r,"origin"),wash:g(r,"wash"),measures:{}};models.set(ref,m)}
+    {const ms=g(r,"measures"),s0=g(r,"size");if(ms&&s0&&!m.measures[s0])m.measures[s0]=ms;}
     const cc=g(r,"colorCode")||g(r,"color");if(cc&&!m.colors.has(cc))m.colors.set(cc,g(r,"color"));
     const sz=g(r,"size");if(sz&&!m.sizes.has(sz))m.sizes.set(sz,g(r,"sizeCode"));
     const pr=parseFloat(String(g(r,"price")).replace(",","."));if(pr>0){if(pr<m.cost)m.cost=pr;if(sz&&!m.prices[sz])m.prices[sz]=pr}
@@ -2637,6 +2663,7 @@ function applyImport(){
   res.list.forEach(m=>{const id="sp-"+m.ref.toLowerCase().replace(/[^a-z0-9]+/g,"-");
     const data={cat:keyOf[m.tops[0]],cats:m.tops.map(t=>keyOf[t]),subs:m.subs,name:titleCase(m.name),ref:m.ref,desc:m.desc,comp:m.comp,shape:m.shape,price:m.sale,cost:m.cost<Infinity?m.cost:null,
       colors:[...m.colors.keys()],sizeList:m.sizes.map(x=>x[0]),sizes:[...new Set(m.sizes.map(([sz,code])=>sizeGroupFor(code,sz)[0]))],
+      info:fichaFrom(m),
       sport:m.tops.includes("Sport collection"),tag:m.novelty?"Novedad":m.outlet?"Outlet":"",featured:m.novelty,remote:m.img,remoteModel:m.imgModel,off:!m.sale,supplier:m.cats.some(c=>/^roly/i.test(c))?"Roly":"Excel"};
     const ex=prodById(id);
     if(ex){setProd(ex,data);updated++}else{const p={id,...data};PRODUCTS.push(p);CATALOG_X.__new=[...(CATALOG_X.__new||[]),p];added++}});
@@ -2644,6 +2671,73 @@ function applyImport(){
   return {added,updated,cats:supCats.length,ok};
 }
 const ORDER_FALLBACK=["XS","S","M","L","XL","2XL","3XL","4XL","5XL"];
+/* ===== Ficha técnica ===== */
+function fichaFrom(m){
+  const obs=String(m.obs||"").split("*").map(s=>s.trim().replace(/\.$/,"")).filter(Boolean);
+  const gsm=(String(m.comp||"").match(/(\d{2,3})\s*g\/m/)||[])[1]||"";
+  const wash=String(m.wash||"").split(",").map(s=>s.trim()).filter(u=>/^https?:/.test(u)).slice(0,8);
+  const meas=Object.fromEntries(Object.entries(m.measures||{}).map(([s,v])=>[s,String(v).replace(/[\[\]]/g,"")]).filter(([,v])=>v));
+  return {comp:m.comp||"",gsm,obs,pack:+m.pack||0,box:+m.box||0,taric:m.taric||"",origin:titleCase(m.origin||""),wash,measures:meas};
+}
+function fichaHTML(p){
+  const f=p.info||{}, rows=[];
+  if(f.comp)rows.push(["Composición",f.comp]);
+  if(f.gsm&&!/g\/m/.test(f.comp||""))rows.push(["Gramaje",f.gsm+" g/m²"]);
+  if(f.pack)rows.push(["Unidades pack",f.pack]);
+  if(f.box)rows.push(["Unidades caja",f.box]);
+  if(f.origin)rows.push(["Fabricado en",f.origin]);
+  if(f.taric)rows.push(["Taric",f.taric]);
+  if(p.ref)rows.push(["Referencia",(p.supplier?p.supplier+" ":"")+p.ref]);
+  const meas=f.measures&&Object.keys(f.measures).length?prodSizes(p).filter(s=>f.measures[s]):[];
+  if(!rows.length&&!(f.obs||[]).length&&!p.desc&&!meas.length)return "";
+  return `<details class="step ficha" open><summary class="step-h"><h3>Ficha técnica</h3><span class="aside">Características de la prenda</span></summary>
+    ${p.desc?`<p class="dim" style="margin:0">${esc(p.desc)}</p>`:""}
+    ${rows.length?`<div class="label">Características principales</div><dl class="fdl">${rows.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>`:""}
+    ${(f.obs||[]).length?`<div class="label">Observaciones y detalles técnicos</div><ul class="fobs">${f.obs.map(o=>`<li>${esc(o)}</li>`).join("")}</ul>`:""}
+    ${meas.length?`<div class="label">Medidas de la prenda (ancho / largo)</div><div class="fmeas">${meas.map(s=>`<span><b>${esc(s)}</b>${esc(f.measures[s])}</span>`).join("")}</div>`:""}
+    ${REMOTE_OK&&(f.wash||[]).length?`<div class="label">Cuidados</div><div class="fwash">${f.wash.map(u=>`<img src="${esc(u)}" alt="" loading="lazy">`).join("")}</div>`:""}
+  </details>`;
+}
+/* ===== Galería de fotos del proveedor (delante, detrás, lateral, modelo…) =====
+   El Excel trae una foto por color; las demás vistas siguen el mismo nombre de archivo
+   (…_COLOR_2_1.jpg, …_2_2.jpg…). Se prueban en el navegador y solo se muestran las que existen. */
+const GAL_VIEWS=["2_1","2_2","2_3","2_4","2_5","2_6","1_1","1_2","1_3","1_4","3_1","3_2"];
+const GAL_CACHE={};
+function galleryUrls(p,code){
+  const base=p&&p.remote&&p.remote[code]; const out=[];
+  if(base&&/_\d+_\d+\.jpg$/i.test(base))GAL_VIEWS.forEach(v=>out.push(base.replace(/_\d+_\d+\.jpg$/i,"_"+v+".jpg")));
+  else if(base)out.push(base);
+  const mdl=p&&p.remoteModel&&p.remoteModel[code]; if(mdl&&!out.includes(mdl))out.push(mdl);
+  return out;
+}
+function probeGallery(p,code){
+  const key=p.id+"|"+code; if(GAL_CACHE[key])return GAL_CACHE[key];
+  const urls=galleryUrls(p,code);
+  return GAL_CACHE[key]=Promise.all(urls.map(u=>new Promise(ok=>{const im=new Image();im.onload=()=>ok(im.naturalWidth>40?u:null);im.onerror=()=>ok(null);im.src=u}))).then(l=>l.filter(Boolean));
+}
+function backRemote(p,code){const base=p&&p.remote&&p.remote[code];if(!base||!p.backView)return null;return base.replace(/_\d+_\d+\.jpg$/i,"_"+p.backView+".jpg")}
+async function renderGallery(){
+  const box=$("#pGallery"); if(!box)return; const p=S.product, code=colorCode(S.color);
+  const own=[];const ph=p.photos||{};const c=ph.byColor&&ph.byColor[code];
+  [c&&c.front,c&&c.back,ph.front,ph.back,...(ph.extra||[])].forEach(k=>{if(k&&PH[k]&&!own.includes(PH[k]))own.push(PH[k])});
+  let urls=own; if(REMOTE_OK){const r=await probeGallery(p,code);if(S.product!==p||colorCode(S.color)!==code)return;urls=[...own,...r]}
+  box.hidden=urls.length<2;
+  box.innerHTML=urls.map((u,i)=>`<button type="button" class="gthumb" data-gal="${i}" aria-label="Ver foto ${i+1}"><img src="${esc(u)}" alt="" loading="lazy"></button>`).join("");
+  box._urls=urls;
+}
+document.addEventListener("click",e=>{
+  const t=e.target.closest("[data-gal]");
+  if(t){const urls=t.parentElement._urls||[];let i=+t.dataset.gal;
+    const show=()=>{$("#galBox").innerHTML=`<div class="galbox" role="dialog" aria-label="Fotos de la prenda"><button class="x" type="button" data-galclose aria-label="Cerrar">×</button>
+      ${urls.length>1?`<button class="gnav prev" type="button" data-galgo="-1" aria-label="Anterior">‹</button><button class="gnav next" type="button" data-galgo="1" aria-label="Siguiente">›</button>`:""}
+      <img src="${esc(urls[i])}" alt=""><span class="gcount">${i+1} / ${urls.length}</span></div>`;$("#galBox")._i=i;$("#galBox")._urls=urls};
+    show();return}
+  const go=e.target.closest("[data-galgo]");
+  if(go){const b=$("#galBox"),u=b._urls;b._i=(b._i+ +go.dataset.galgo+u.length)%u.length;b.querySelector("img").src=u[b._i];b.querySelector(".gcount").textContent=`${b._i+1} / ${u.length}`;return}
+  if(e.target.closest("[data-galclose]")||e.target.classList.contains("galbox")){$("#galBox").innerHTML=""}
+});
+document.addEventListener("keydown",e=>{const b=$("#galBox");if(!b||!b.innerHTML)return;if(e.key==="Escape")b.innerHTML="";
+  if(e.key==="ArrowRight"||e.key==="ArrowLeft")b.querySelector(`[data-galgo="${e.key==="ArrowRight"?1:-1}"]`)?.click()});
 function prodForm(p){
   const sel=p?p.colors:[], grp=p?(p.sizes||["adulto"]):["adulto"];
   return `<form id="npForm" novalidate style="display:flex;flex-direction:column;gap:14px" data-edit="${p?p.id:""}">
@@ -2659,6 +2753,16 @@ function prodForm(p){
     <div class="cpick">${PALETTE.map(([c,n,h])=>`<label title="${esc(n)}"><input type="checkbox" class="npC" value="${esc(c)}"${sel.includes(c)?" checked":""}><i style="background:${h}"></i><span class="mono">${esc(c)}</span></label>`).join("")}</div>
     <div class="label">Tallas</div>
     <div class="checks">${SIZE_GROUPS.map(g=>`<label><input type="checkbox" class="npG" value="${esc(g.id)}"${grp.includes(g.id)?" checked":""}> ${esc(g.label)} <small class="dim">(${g.sizes.map(esc).join(" ")})</small></label>`).join("")}</div>
+    <details class="ficha-ed"${p&&p.info?" open":""}><summary class="label" style="cursor:pointer">Ficha técnica (se ve en la web, debajo del precio)</summary>
+      <div class="formgrid" style="margin-top:8px">
+        <label class="field" style="grid-column:1/-1"><span>Descripción</span><textarea id="npDesc" rows="2">${p&&p.desc?esc(p.desc):""}</textarea></label>
+        <label class="field" style="grid-column:1/-1"><span>Composición y gramaje</span><input type="text" id="npComp" value="${p&&p.info&&p.info.comp?esc(p.info.comp):p&&p.comp?esc(p.comp):""}" placeholder="100% poliéster piqué, 135 g/m²"></label>
+        <label class="field"><span>Unidades pack</span><input type="number" min="0" id="npPack" value="${p&&p.info&&p.info.pack||""}"></label>
+        <label class="field"><span>Unidades caja</span><input type="number" min="0" id="npBox" value="${p&&p.info&&p.info.box||""}"></label>
+        <label class="field"><span>Taric</span><input type="text" id="npTaric" value="${p&&p.info&&p.info.taric?esc(p.info.taric):""}"></label>
+        <label class="field"><span>Fabricado en</span><input type="text" id="npOrigin" value="${p&&p.info&&p.info.origin?esc(p.info.origin):""}"></label>
+        <label class="field" style="grid-column:1/-1"><span>Observaciones (una por línea)</span><textarea id="npObs" rows="4" placeholder="Tejido transpirable&#10;Etiqueta removible">${p&&p.info&&p.info.obs?esc(p.info.obs.join("\n")):""}</textarea></label>
+      </div></details>
     <div class="formgrid"><label class="field"><span>Etiqueta en la tarjeta (opcional)</span><input type="text" id="npTag" maxlength="20" value="${p&&p.tag?esc(p.tag):""}" placeholder="Más pedida, Novedad…"></label></div>
     <div class="checks"><label><input type="checkbox" id="npSport"${p&&p.sport?" checked":""}> Admite nombres y números</label><label><input type="checkbox" id="npFeat"${p&&(p.featured||(p.featured==null&&p.tag))?" checked":""}> Sale en «Lo más pedido» de la home</label></div>
     <div class="err" id="npErr" style="color:var(--danger);font-size:14px"></div>
@@ -2704,9 +2808,21 @@ function supplierBox(p){
       ${p.remote&&p.remote[k]?`<a class="linkbtn" href="${esc(p.remote[k])}" target="_blank" rel="noopener">Foto producto ↗</a>`:""}
       ${p.remoteModel&&p.remoteModel[k]?`<a class="linkbtn" href="${esc(p.remoteModel[k])}" target="_blank" rel="noopener">Con modelo ↗</a>`:""}
       <a class="linkbtn" href="${imgSearchUrl(p,k)}" target="_blank" rel="noopener">Buscar en Google ↗</a></div>`).join("")}</div>
-    ${has?`<div class="note">En la web real este paso será automático: un botón «Traer fotos de ${esc(p.supplier||"proveedor")}» descargará las fotos de todos los colores al servidor, sin copiar y pegar.</div>`:""}
+    ${has?`<div class="label" style="margin-top:6px">Vistas que tiene el proveedor (se muestran solas en la web, en la galería de la prenda)</div><div id="supViews" class="dim">Buscando vistas…</div>`:""}
   </section>`;
 }
+async function fillSupViews(p){
+  const box=$("#supViews"); if(!box)return;
+  if(!REMOTE_OK){box.textContent="Las fotos del proveedor solo se ven en la web publicada.";return}
+  const code=p.colors.find(k=>p.remote&&p.remote[k]); const urls=code?await probeGallery(p,code):[];
+  if(!$("#supViews"))return;
+  const views=urls.map(u=>[u,(u.match(/_(\d+_\d+)\.jpg$/i)||[])[1]]).filter(([,v])=>v);
+  box.innerHTML=views.length?`<div class="supviews">${views.map(([u,v])=>`<figure><img src="${esc(u)}" alt="" loading="lazy"><figcaption>${v==="2_1"?"Delante (la del Excel)":p.backView===v?"<b>Detrás ✓</b>":`<button type="button" class="linkbtn" data-backview="${v}">Usar como detrás</button>`}</figcaption></figure>`).join("")}</div>
+    <p class="dim" style="margin:6px 0 0">«Usar como detrás» vale para todos los colores de esta prenda. ${p.backView?`<button type="button" class="linkbtn" data-backview="">Quitar la de detrás</button>`:""}</p>`:"No se han encontrado más vistas para esta prenda.";
+}
+{const photoSheet0=photoSheet;photoSheet=function(pid){photoSheet0(pid);const p=prodById(pid);if(p)fillSupViews(p)}}
+document.addEventListener("click",e=>{const b=e.target.closest("[data-backview]");if(!b||!PHOTO_PID)return;const p=prodById(PHOTO_PID);
+  setProd(p,{backView:b.dataset.backview||null});saveCatalog();fillSupViews(p);renderCats()});
 function photoSheet(pid){
   PHOTO_PID=pid; const p=prodById(pid); if(!p)return; const ph=p.photos||{}, by=ph.byColor||{};
   const thumb=(key,label,attrs,code,side)=>{const has=key&&PH[key];
@@ -2919,6 +3035,10 @@ $("#admin").addEventListener("submit",e=>{
     if(!name)err.push("Pon nombre a la prenda.");if(!(price>0))err.push("Indica el precio de venta.");if(!colors.length)err.push("Marca al menos un color.");if(!groups.length)err.push("Marca al menos un grupo de tallas.");
     if(err.length){$("#npErr").innerHTML=err.map(esc).join("<br>");return}
     const data={cat:$("#npCat").value,name,shape:$("#npShape").value,price,colors,sizes:groups,sport:$("#npSport").checked,tag:$("#npTag").value.trim(),featured:$("#npFeat").checked};
+    {const old=(e.target.dataset.edit&&prodById(e.target.dataset.edit)||{}).info||{}, comp=$("#npComp").value.trim();
+     data.desc=$("#npDesc").value.trim();
+     data.info={...old,comp,gsm:(comp.match(/(\d{2,3})\s*g\/m/)||[])[1]||"",pack:+$("#npPack").value||0,box:+$("#npBox").value||0,taric:$("#npTaric").value.trim(),origin:$("#npOrigin").value.trim(),
+       obs:$("#npObs").value.split("\n").map(s=>s.trim()).filter(Boolean)};}
     const editId=e.target.dataset.edit;
     if(editId){const p=PRODUCTS.find(x=>x.id===editId);Object.assign(p,data);
       const nw=(CATALOG_X.__new||[]).find(x=>x.id===editId); if(nw)Object.assign(nw,data); else CATALOG_X[editId]={...(CATALOG_X[editId]||{}),...data};}
@@ -3122,7 +3242,7 @@ $("#sheetRoot").addEventListener("submit",e=>{
     const f=$("#ncLogo").files[0];if(f){const r=new FileReader();r.onload=()=>finish(r.result);r.readAsDataURL(f)}else finish("");}
 },true);
 
-function renderAll(){renderColors();renderEls();renderTeam();renderSizes();renderTill()}
+function renderAll(){renderColors();renderEls();renderTeam();renderSizes();renderTill();const pi=$("#pInfo");if(pi)pi.innerHTML=fichaHTML(S.product);renderGallery()}
 renderCats(); renderShowcase(); updateCount(); updateNav(); route(); testRemote(); paymentReturn();
 phLoadAll().then(()=>{if(!Object.keys(PH).length)return;renderCats();if(!$("#config").hidden)renderCanvas();
   if(!$("#area").hidden&&CUR)renderArea("cliente-"+CUR.code.toLowerCase());if(!$("#admin").hidden&&!$("#sheetRoot").innerHTML)renderAdmin(location.hash.slice(1))});
