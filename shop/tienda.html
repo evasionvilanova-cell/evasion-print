@@ -1085,7 +1085,7 @@ const S={
   cat:"todo", product:PRODUCTS.find(p=>p.id==="dep-tecnica")||PRODUCTS[0], color:"55", side:"front", sel:null,
   els:[],
   team:{on:false,name:true,numB:true,numF:false,style:"block",vinyl:"V-01",rows:[]},
-  sizes:{M:1}
+  sizes:{}
 };
 let cart=[]; try{cart=JSON.parse(STORE.getItem("ep_cart")||"[]")}catch(e){cart=[]}
 const saveCart=()=>{try{STORE.setItem("ep_cart",JSON.stringify(cart.map(i=>({...i,logos:undefined}))))}catch(e){}};
@@ -1240,7 +1240,7 @@ function selectProduct(id){
   if(!S.product.colors.includes(S.color)) S.color=S.product.colors[0];
   const noSleeve=!hasSleeves(S.product);
   S.els.forEach(el=>{if(el.kind==="logo"&&el.place==="manga"&&noSleeve){Object.assign(el,PLACES.pecho,{place:"pecho"})}});
-  if(changed){S.side="front";S.sel=null}
+  if(changed){S.side="front";S.sel=null;S.sizes={}}
   $("#crumbCat").textContent=catLabel(S.product.cat)+" · "+S.product.name;
   renderAll();
 }
