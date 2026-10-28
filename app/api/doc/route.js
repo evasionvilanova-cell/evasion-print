@@ -29,8 +29,21 @@ td{padding:8px 4px;border-bottom:1px solid #eceef1;vertical-align:top}.r{text-al
 
 export async function GET(req) {
   const u = new URL(req.url);
-  const ref = u.searchParams.get("ref") || "", type = u.searchParams.get("type") === "factura" ? "factura" : "pedido";
+  const ref = u.searchParams.get("ref") || "", type = ["factura", "presupuesto"].includes(u.searchParams.get("type")) ? u.searchParams.get("type") : "pedido";
   const s = await getSession().catch(() => null);
+  if (type === "presupuesto") {
+    const qt = (await q("select data from quotes where ref=$1", [ref])).rows[0]?.data;
+    if (!qt || !s || !(s.role === "admin" || (s.role === "client" && qt.client === s.client))) return new Response("No encontrado", { status: 404 });
+    const L = Array.isArray(qt.lines) && qt.lines.length ? qt.lines : [{ name: qt.products || "Presupuesto", qty: 1, unit: +qt.answer?.total || 0, total: +qt.answer?.total || 0 }];
+    const total = r2(L.reduce((a, l) => a + (+l.total || 0), 0)), base = r2(total / 1.21), iva = r2(total - base);
+    const rows = L.map((l) => `<tr><td>${esc(l.name)}${l.sizes ? `<br><small class="muted">${esc(l.sizes)}</small>` : ""}${(l.parts || []).length ? `<br><small class="muted">${esc(l.parts.join(" · "))}</small>` : ""}</td><td class="r">${l.qty}</td><td class="r">${eur(+l.unit || 0)}</td><td class="r">${eur(+l.total || 0)}</td></tr>`).join("");
+    return new Response(page(`Presupuesto ${ref}`, `<div class="top"><div><div class="brand">EVASION <i>Print</i></div><div class="muted">${SHOP.brand}</div></div><div><h1>Presupuesto</h1><div class="r"><b>${esc(ref)}</b><br>Fecha: ${dES(qt.answer?.date || qt.date)}${qt.validUntil ? `<br>Válido hasta: ${dES(qt.validUntil + "T12:00:00Z")}` : ""}</div></div></div>
+      <div class="cols"><div><div class="lbl">Emisor</div><b>${SHOP.name}</b><br>NIF ${SHOP.nif}<br>${SHOP.addr}<br>${SHOP.city}<br>${SHOP.tel} · ${SHOP.email}</div><div><div class="lbl">Cliente</div><b>${esc(qt.company || qt.name)}</b>${qt.company && qt.name ? `<br>${esc(qt.name)}` : ""}<br>${esc(qt.email || "")}${qt.tel ? `<br>${esc(qt.tel)}` : ""}</div></div>
+      <table><thead><tr><th>Concepto</th><th class="r">Ud</th><th class="r">Precio ud</th><th class="r">Importe</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="tot"><div class="big"><span>Total con IVA</span><span>${eur(total)}</span></div><div class="muted"><span>Base imponible</span><span>${eur(base)}</span></div><div class="muted"><span>IVA 21 %</span><span>${eur(iva)}</span></div></div>
+      <div class="foot">${qt.answer?.days ? `Plazo: ${esc(qt.answer.days)}. ` : ""}${qt.answer?.notes ? esc(qt.answer.notes) + " " : ""}Precios con IVA incluido. Envío no incluido salvo que se indique.</div>`),
+      { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
+  }
   const r = (await q("select ref,client,paid,pay,total,data,state,created_at from orders where ref=$1", [ref])).rows[0];
   const allowed = r && s && (s.role === "admin" || (s.role === "client" && r.client === s.client));
   if (!allowed) return new Response("No encontrado", { status: 404 });

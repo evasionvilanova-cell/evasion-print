@@ -425,6 +425,12 @@ form.step>.field,#addrBox>.field,#addrBox>.row{flex:none}
 .olist{display:flex;flex-direction:column;gap:10px;max-width:900px}.ocard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px}
 .pgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:14px;align-items:start}
 .pgrid form.step{display:flex;flex-direction:column;gap:10px}
+.frow{display:grid;grid-template-columns:minmax(0,2.2fr) minmax(0,1.2fr) 70px 90px 84px 28px;gap:6px;align-items:center}
+.frow>span{font-size:14px;min-width:0}.oelines{display:flex;flex-direction:column;gap:6px}
+@media (max-width:700px){.frow{grid-template-columns:1fr 1fr;}.frow>span{grid-column:1/-1}}
+.mocp{border:1px solid var(--line);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:8px;background:var(--surface)}
+.qlines{width:100%;border-collapse:collapse;margin-top:10px;font-size:14px}.qlines td{padding:5px 0;border-bottom:1px solid var(--line)}
+.st.cancelado{background:#eceef1;color:#6b7078}
 .supviews{display:flex;gap:8px;flex-wrap:wrap}.supviews figure{margin:0;width:96px;font-size:11px;text-align:center}.supviews img{width:96px;height:106px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:6px}
 .fwash{display:flex;gap:8px;flex-wrap:wrap}.fwash img{width:30px;height:30px;object-fit:contain}
 
@@ -1847,6 +1853,7 @@ function keepAndReopen(){
   ids.forEach(i=>{const n=document.getElementById(i);if(n&&vals[i]!=null)n.value=vals[i]}); $("#coTerms").checked=terms; $(".sheet").scrollTop=y;
 }
 $("#sheetRoot").addEventListener("submit",async e=>{
+  if(e.target.id!=="coForm")return;
   e.preventDefault(); const err=[];
   const v=id=>(document.getElementById(id)||{}).value?.trim()||"";
   if(!v("coName"))err.push("Escribe tu nombre.");
@@ -2034,11 +2041,51 @@ function myOrders(code){return IS_CLIENT?(BOOT.myOrders||[]):loadOrders().filter
 function areaTabs(c,code){
   const os=myOrders(code);
   const t=(k,l)=>`<button type="button" role="tab" data-atab="${k}" aria-selected="${ATAB===k}">${l}</button>`;
-  return `<div class="atabs" role="tablist">${t("prendas",`Mis prendas <small>${c.products.length}</small>`)}${t("pedidos",`Mis pedidos <small>${os.length}</small>`)}${t("perfil","Mi perfil")}</div>
-    ${ATAB==="pedidos"?ordersPane(c,code,os):ATAB==="perfil"?profilePane(c):
+  const qs=myQuotes(code);
+  return `<div class="atabs" role="tablist">${t("prendas",`Mis prendas <small>${c.products.length}</small>`)}${t("pedidos",`Mis pedidos <small>${os.length}</small>`)}${t("presupuestos",`Presupuestos <small>${qs.filter(q=>q.status==="enviado").length}</small>`)}${t("perfil","Mi perfil")}</div>
+    ${ATAB==="pedidos"?ordersPane(c,code,os):ATAB==="presupuestos"?quotesPane(c,qs):ATAB==="perfil"?profilePane(c):
       c.products.length?`<div class="cprods">${c.products.map(cp=>cprodHTML(cp)).join("")}</div>`
       :`<div class="step" style="max-width:640px"><h3 style="margin:0">Aún no tienes prendas guardadas</h3><p class="dim" style="margin:0">Te preparamos vuestras prendas con el logo y los colores del club o la empresa para que repetir sea elegir tallas y pagar. Escríbenos a <a href="mailto:${SHOP.email}">${SHOP.email}</a> o por WhatsApp al ${SHOP.whats}. Mientras tanto puedes <a href="#catalogo">pedir desde el catálogo</a>.</p></div>`}`;
 }
+
+let QACC=null;
+function myQuotes(code){return IS_CLIENT?(BOOT.myQuotes||[]):loadQuotes().filter(q=>q.client===code&&q.answer&&q.answer.total)}
+function quotesPane(c,qs){
+  if(!qs.length)return `<div class="step" style="max-width:640px"><h3 style="margin:0">No tienes presupuestos</h3><p class="dim" style="margin:0">Cuando te preparemos un presupuesto lo verás aquí y podrás aceptarlo y pagarlo. ¿Necesitas uno? <a href="#presupuesto">Pídelo aquí</a>.</p></div>`;
+  const today=new Date().toISOString().slice(0,10);
+  return `<div class="olist">${qs.map(q=>{const exp=q.validUntil&&q.validUntil<today&&q.status==="enviado";const L=q.lines&&q.lines.length?q.lines:[{name:q.products,qty:+q.qty||1,total:+q.answer.total}];
+    return `<div class="ocard"><div class="row" style="justify-content:space-between;gap:10px;align-items:flex-start">
+      <div><b class="mono">${esc(q.ref)}</b> · ${dshort(q.answer.date||q.date)}${q.validUntil?` · válido hasta ${dshort(q.validUntil+"T12:00:00")}`:""}</div>
+      <div style="text-align:right"><b class="mono">${eur(+q.answer.total)}</b><br><span class="st ${q.status==="aceptado"?"listo":exp?"entregado":"nuevo"}">${q.status==="aceptado"?"Aceptado":exp?"Caducado":"Pendiente de aceptar"}</span></div></div>
+      <table class="qlines"><tbody>${L.map(l=>`<tr><td>${esc(l.name)}${l.sizes?` <small class="dim">${esc(l.sizes)}</small>`:""}</td><td class="mono">${l.qty} ud</td><td class="mono" style="text-align:right">${eur(+l.total)}</td></tr>`).join("")}</tbody></table>
+      ${q.answer.days?`<div class="dim" style="font-size:13px">Plazo: ${esc(q.answer.days)}</div>`:""}${q.answer.notes?`<div class="dim" style="font-size:13px">${esc(q.answer.notes)}</div>`:""}
+      <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap"><a class="btn" href="/api/doc?type=presupuesto&ref=${encodeURIComponent(q.ref)}" target="_blank" rel="noopener">Ver presupuesto</a>
+        ${q.status==="enviado"&&!exp&&IS_CLIENT&&q.lines?`<button class="btn primary" type="button" data-qacc="${esc(q.ref)}">Aceptar y pagar</button>`:""}
+        ${q.orderRef?`<span class="dim">Pedido ${esc(q.orderRef)}</span>`:""}</div>
+      ${QACC===q.ref?`<form class="qaccform" data-ref="${esc(q.ref)}" novalidate style="margin-top:12px;display:flex;flex-direction:column;gap:10px">
+        <div class="label">Entrega</div>${shipFields({},"qa")}
+        <label class="field"><span>Teléfono de contacto</span><input type="tel" id="qaTel" value="${esc(c.contact||"")}"></label>
+        <div class="label">Pago</div><div class="row" style="gap:14px;flex-wrap:wrap">
+          <label class="toggle"><input type="radio" name="qaPay" value="card" checked> Tarjeta</label>
+          ${BOOT.pay.bizum?`<label class="toggle"><input type="radio" name="qaPay" value="bizum"> Bizum</label>`:""}
+          ${c.transfer?`<label class="toggle"><input type="radio" name="qaPay" value="transfer"> Transferencia</label>`:""}</div>
+        <label class="toggle" style="font-weight:500;font-size:13px"><input type="checkbox" id="qaOk"> Acepto el presupuesto y las condiciones. Las prendas personalizadas no admiten devolución salvo defecto de producción.</label>
+        <div class="err" id="qaErr" style="color:var(--danger);font-size:14px"></div>
+        <div class="row" style="gap:8px"><button class="btn primary" type="submit">Aceptar y pagar ${eur(+q.answer.total)}</button><button class="btn ghost" type="button" data-qacc="">Cancelar</button></div></form>`:""}
+    </div>`}).join("")}</div>`;
+}
+function goPay(res){
+  if(res.transfer||res.simulated){location.href=`/?pedido=${encodeURIComponent(res.ref)}&t=${res.token}`;return}
+  const f=document.createElement("form");f.method="POST";f.action=res.redsys.url;
+  Object.entries(res.redsys.fields).forEach(([k,val])=>{const i=document.createElement("input");i.type="hidden";i.name=k;i.value=val;f.appendChild(i)});document.body.appendChild(f);f.submit();
+}
+document.addEventListener("click",e=>{const b=e.target.closest("[data-qacc]");if(!b)return;QACC=b.dataset.qacc||null;reArea()});
+document.addEventListener("submit",async e=>{const f=e.target;if(!f.classList.contains("qaccform"))return;e.preventDefault();
+  if(!$("#qaOk").checked)return $("#qaErr").textContent="Marca la casilla para aceptar el presupuesto.";
+  const ship=(f.querySelector('input[name=qaShip]:checked')||{}).value||"tienda",pay=(f.querySelector('input[name=qaPay]:checked')||{}).value;
+  const btn=f.querySelector("button[type=submit]");btn.disabled=true;btn.textContent="Conectando…";
+  try{const res=await api("/api/quote-accept",{ref:f.dataset.ref,customer:{name:SESSION.name,email:SESSION.email,tel:$("#qaTel").value,ship,addr:$("#qaAddr").value,pay}});goPay(res)}
+  catch(x){btn.disabled=false;btn.textContent="Aceptar y pagar";$("#qaErr").textContent=x.message}});
 const billingOf=(c,o)=>{const b=c.billing||{};return {name:b.name||(o&&o.company)||c.name||"",cif:b.cif||(o&&o.cif)||"",addr:b.addr||"",zip:b.zip||"",city:b.city||"",province:b.province||""}};
 function billingFields(b,pre){return `<div class="formgrid">
   <label class="field" style="grid-column:1/-1"><span>Razón social o nombre</span><input type="text" id="${pre}Name" value="${esc(b.name)}"></label>
@@ -2409,7 +2456,8 @@ $("#sheetRoot").addEventListener("click",e=>{if(e.target.id==="qcCopy"){navigato
 $("#sheetRoot").addEventListener("click",e=>{if(e.target.id==="qaCopy"){navigator.clipboard&&navigator.clipboard.writeText($("#qaMsg").textContent).then(()=>{e.target.textContent="Copiado"},()=>{})}});
 
 /* ============ GESTIÓN (tienda) ============ */
-const ST={nuevo:"Nuevo · revisar archivo",incidencia:"Incidencia de archivo",produccion:"En producción",listo:"Listo para entregar",entregado:"Entregado"};
+const ST={nuevo:"Nuevo · revisar archivo",incidencia:"Incidencia de archivo",produccion:"En producción",listo:"Listo para entregar",entregado:"Entregado",cancelado:"Cancelado"};
+const PAYL={card:"Tarjeta (web)",bizum:"Bizum (web)",transfer:"Transferencia",efectivo:"Efectivo en tienda",tpv:"Tarjeta en tienda (TPV)",bizum_tienda:"Bizum en tienda",pendiente:"Pendiente de pago"};
 const dAgo=n=>{const d=new Date();d.setDate(d.getDate()-n);return d.toISOString()};
 const dIn=n=>addBusinessDays(new Date(),n).toISOString();
 const SEED_ORDERS=!BOOT.demo?[]:[
@@ -2458,10 +2506,11 @@ function renderAdmin(id){
 }
 function admOrders(orders){
   const by=k=>orders.filter(o=>o.status===k).length;
-  const month=new Date().toISOString().slice(0,7), billed=orders.filter(o=>o.date.slice(0,7)===month).reduce((a,o)=>a+o.total,0);
-  const filt={activos:o=>o.status!=="entregado",revisar:o=>o.status==="nuevo"||o.status==="incidencia",produccion:o=>o.status==="produccion",listo:o=>o.status==="listo",todos:()=>true}[OFILTER];
+  const month=new Date().toISOString().slice(0,7), billed=orders.filter(o=>o.date.slice(0,7)===month&&o.status!=="cancelado"&&o.paid).reduce((a,o)=>a+o.total,0);
+  const filt={activos:o=>o.status!=="entregado"&&o.status!=="cancelado",revisar:o=>o.status==="nuevo"||o.status==="incidencia",produccion:o=>o.status==="produccion",listo:o=>o.status==="listo",todos:()=>true}[OFILTER];
   const list=orders.filter(filt); const today=new Date().toISOString().slice(0,10);
   $("#admBody").innerHTML=`<div class="adm-h"><div><span class="eyebrow">Pedidos</span><h1>Cola de trabajo</h1></div>
+      <div class="row" style="gap:8px"><button class="btn dark" type="button" id="moNew">+ Nuevo pedido</button><button class="btn" type="button" id="nqNew">+ Nuevo presupuesto</button></div>
       <div class="cats">${[["activos","Activos"],["todos","Todos"]].map(([k,l])=>`<button class="chip" type="button" data-of="${k}" aria-pressed="${OFILTER===k}">${l}</button>`).join("")}</div></div>
     <div class="kpis">
       <button type="button" data-of="revisar" aria-pressed="${OFILTER==="revisar"}"><b>${by("nuevo")+by("incidencia")}</b><span>Por revisar${by("incidencia")?` · ${by("incidencia")} con incidencia`:""}</span></button>
@@ -2471,7 +2520,7 @@ function admOrders(orders){
     </div>
     <div class="tbl"><table><thead><tr><th>Pedido</th><th>Fecha</th><th>Cliente</th><th>Ud</th><th>Total</th><th>Entrega</th><th>Compromiso</th><th>Estado</th></tr></thead><tbody>
     ${list.map(o=>{const units=o.items.reduce((a,i)=>a+i.qty,0), late=o.status!=="entregado"&&o.due.slice(0,10)<today;
-      return `<tr data-ref="${o.ref}"><td class="mono">${o.ref}${o.pay==="transfer"&&!o.paid?`<br><span class="kindtag k-contacto">Transf. pendiente</span>`:""}</td><td>${dshort(o.date)}</td><td>${esc(o.company||o.name)}${o.by&&o.company?`<br><small style="color:var(--muted)">por ${esc(o.by)}</small>`:""}</td>
+      return `<tr data-ref="${o.ref}"><td class="mono">${o.ref}${!o.paid&&o.status!=="cancelado"&&!["card","bizum"].includes(o.pay)?`<br><span class="kindtag k-contacto">${o.pay==="transfer"?"Transf. pendiente":"Cobro pendiente"}</span>`:""}${o.manual?`<br><span class="kindtag">Manual</span>`:""}</td><td>${dshort(o.date)}</td><td>${esc(o.company||o.name)}${o.by&&o.company?`<br><small style="color:var(--muted)">por ${esc(o.by)}</small>`:""}</td>
       <td class="mono">${units}</td><td class="mono">${eur(o.total)}</td><td>${o.ship==="tienda"?"Tienda":"Envío"}</td><td class="${late?"late":""}">${dshort(o.due)}</td><td><span class="st ${o.status}">${ST[o.status]}</span></td></tr>`}).join("")||`<tr><td colspan="8" style="color:var(--muted);padding:24px">No hay pedidos en esta vista.</td></tr>`}
     </tbody></table></div>
 `;
@@ -2583,14 +2632,17 @@ function orderSheet(ref){
   const msg={listo:`Hola ${o.name.split(" ")[0]}, tu pedido ${o.ref} ya está listo${o.ship==="tienda"?" para recoger en Evasion Running (Vilanova i la Geltrú)":" y sale hoy hacia tu dirección"}. ¡Gracias!`,
     incidencia:`Hola ${o.name.split(" ")[0]}, hemos revisado el archivo de tu pedido ${o.ref} y no tiene resolución suficiente para que quede nítido. ¿Nos puedes enviar el logo en PDF, SVG o PNG grande? En cuanto lo tengamos lo producimos.`}[o.status];
   $("#sheetRoot").innerHTML=`<div class="sheet" role="dialog" aria-label="Pedido ${o.ref}"><div class="wrap" style="max-width:980px">
-    <div class="row" style="justify-content:space-between"><button class="btn" type="button" data-back>← Pedidos</button>${o.example?`<span class="tag-ex">pedido de ejemplo</span>`:""}</div>
+    <div class="row" style="justify-content:space-between"><button class="btn" type="button" data-back>← Pedidos</button>
+      <div class="row" style="gap:6px"><button class="btn" type="button" data-oedit="${o.ref}">Editar pedido</button>
+      ${o.status!=="cancelado"?`<button class="btn" type="button" data-ocancel="${o.ref}">Cancelar pedido</button>`:`<button class="btn" type="button" data-ouncancel="${o.ref}">Reactivar</button>`}
+      <button class="btn ghost" type="button" data-odel="${o.ref}" style="color:var(--danger)">${DEL_ORDER===o.ref?"¿Seguro? Pulsa otra vez para eliminar":"Eliminar"}</button></div></div>
     <div class="adm-h" style="margin-top:18px"><div><span class="eyebrow">${dateES(new Date(o.date))}</span><h1 style="font-family:'Instrument Serif',Georgia,serif;font-weight:400;text-transform:none;font-size:48px">${o.ref}</h1></div>
       <div class="row"><label class="field" style="min-width:220px"><span>Estado</span><select id="odStatus" data-ref="${o.ref}">${Object.entries(ST).map(([k,l])=>`<option value="${k}"${o.status===k?" selected":""}>${l}</option>`).join("")}</select></label>
       ${nextBtn?`<button class="btn primary" type="button" data-next="${nextBtn[0]}" data-ref="${o.ref}" style="align-self:flex-end">${nextBtn[1]}</button>`:""}</div></div>
     <div class="co">
       <div class="od-items">
         <div class="label">Hoja de producción · ${units} ud</div>
-        ${o.items.map((i,n)=>`<div class="od-item">${i.design?"":`<svg viewBox="0 0 400 440" aria-hidden="true" style="width:90px">${i.pid&&prodById(i.pid)?prodSVG(prodById(i.pid),i.color,"front","o"+o.ref+n):garmentSVG(i.shape,COLORS[i.color][1],"front","o"+o.ref+n)}</svg>`}
+        ${o.items.map((i,n)=>i.free?`<div class="od-item"><div style="min-width:0"><b>${esc(i.name)}</b> · <span class="mono">${i.qty} ud</span> · <span class="mono">${eur(i.total)}</span>${i.sizes?`<div class="dim">${esc(i.sizes)}</div>`:""}${(i.parts||[]).length?`<ul>${i.parts.map(p=>`<li>${esc(p)}</li>`).join("")}</ul>`:""}</div></div>`:`<div class="od-item">${i.design?"":`<svg viewBox="0 0 400 440" aria-hidden="true" style="width:90px">${i.pid&&prodById(i.pid)?prodSVG(prodById(i.pid),i.color,"front","o"+o.ref+n):garmentSVG(i.shape,COLORS[i.color][1],"front","o"+o.ref+n)}</svg>`}
           <div style="min-width:0"><b>${esc(i.name)}</b> · ${colorLabel(i.color)} · <span class="mono">${i.qty} ud</span>
           <div class="sztbl">${i.sizes.split(" ").filter(Boolean).map(t=>{const [q,sz]=t.split("×");return `<span>${sz} <b>${q}</b></span>`}).join("")}</div>
           ${(i.removed||[]).length?`<div class="note" style="margin-top:8px">Quitado por la tienda: ${i.removed.map(x=>`${esc(x.label)}${x.amount?` (−${eur(x.amount)})`:""}`).join(" · ")}</div>`:""}
@@ -2613,7 +2665,7 @@ function orderSheet(ref){
           <div>${o.ship==="tienda"?"Recogida en tienda":"Envío a: "+esc(o.addr||"")}</div>
           <div>Compromiso: <b>${dateES(new Date(o.due))}</b></div>
           <div class="row" style="gap:6px;flex-wrap:wrap;margin:4px 0"><a class="btn" style="padding:4px 10px;font-size:13px" href="/api/doc?type=pedido&ref=${encodeURIComponent(o.ref)}" target="_blank" rel="noopener">Hoja de pedido</a>${o.invoice?`<a class="btn dark" style="padding:4px 10px;font-size:13px" href="/api/doc?type=factura&ref=${encodeURIComponent(o.ref)}" target="_blank" rel="noopener">Factura ${esc(o.invoice)}</a>`:`<span class="dim" style="font-size:13px">Sin factura</span>`}</div>
-          ${o.pay==="transfer"?`<div>Transferencia · <b class="mono">${eur(o.total)}</b> · ${o.paid?`<span class="st listo">Cobrada</span>`:`<span class="st incidencia">Pendiente de cobro</span> <button class="btn" type="button" data-paidref="${o.ref}" style="padding:3px 10px;font-size:13px">Marcar como cobrada</button>`}</div>`
+          ${!["card","bizum"].includes(o.pay)?`<div>${esc(PAYL[o.pay]||o.pay)} · <b class="mono">${eur(o.total)}</b> · ${o.paid?`<span class="st listo">Cobrado</span>`:`<span class="st incidencia">Pendiente de cobro</span> <button class="btn" type="button" data-paidref="${o.ref}" style="padding:3px 10px;font-size:13px">Marcar como cobrado</button>`}</div>`
             :`<div>Pagado con ${o.pay==="bizum"?"Bizum":"tarjeta"} · <b class="mono">${eur(o.total)}</b></div>`}</div>
         ${(o.refunds||[]).length?`<div class="step"><div class="step-h"><h3>Devoluciones</h3></div>
           ${o.refunds.map(r=>`<div class="row" style="justify-content:space-between;gap:8px"><span style="flex:1;min-width:0">${esc(r.label)}<br><small class="dim">${dshort(r.date)} · ${r.done?"devuelto":"pendiente"}</small></span><b class="mono">−${eur(r.amount)}</b></div>`).join("")}
@@ -2671,6 +2723,200 @@ document.addEventListener("click",e=>{const b=e.target.closest("[data-paidref]")
 document.addEventListener("change",e=>{const t=e.target.closest("[data-cltransfer]");if(!t)return;const k=t.dataset.cltransfer,ex=loadExtra();
   if(!ex[k]){const c=allClients()[k];ex[k]={name:c.name,type:c.type,crest:c.crest||"",contact:c.contact||"",users:[],products:[]}}
   ex[k].transfer=t.checked;saveExtra(ex)});
+
+/* ===== Gestión: editar, cancelar y eliminar pedidos ===== */
+let DEL_ORDER=null;
+const moneyIn=(id,v)=>`<input type="number" step="0.01" min="0" id="${id}" value="${(+v||0).toFixed(2)}">`;
+function freeRowHTML(l,pre){return `<div class="frow" data-frow>
+  <input type="text" data-f="desc" placeholder="Concepto (p. ej. Camiseta técnica con logo delante)" value="${esc(l.desc||l.name||"")}" aria-label="Concepto">
+  <input type="text" data-f="sizes" placeholder="Tallas (opcional)" value="${esc(l.sizes||"")}" aria-label="Tallas">
+  <input type="number" min="0" step="1" data-f="qty" value="${l.qty||1}" aria-label="Unidades">
+  <input type="number" min="0" step="0.01" data-f="unit" value="${l.unit!=null?(+l.unit).toFixed(2):""}" placeholder="€/ud" aria-label="Precio por unidad con IVA">
+  <span class="mono" data-f="tot">${eur((+l.qty||0)*(+l.unit||0))}</span>
+  <button class="x" type="button" data-frm aria-label="Quitar línea">×</button></div>`}
+function readFree(root){return [...root.querySelectorAll("[data-frow]")].map(r=>({desc:r.querySelector('[data-f=desc]').value.trim(),sizes:r.querySelector('[data-f=sizes]').value.trim(),qty:+r.querySelector('[data-f=qty]').value||0,unit:+r.querySelector('[data-f=unit]').value||0})).filter(l=>l.desc&&l.qty>0)}
+function custFields(c,pre){return `<div class="formgrid">
+  <label class="field"><span>Nombre y apellidos</span><input type="text" id="${pre}Name" value="${esc(c.name||"")}"></label>
+  <label class="field"><span>Email</span><input type="email" id="${pre}Email" value="${esc(c.email||"")}"></label>
+  <label class="field"><span>Teléfono</span><input type="tel" id="${pre}Tel" value="${esc(c.tel||"")}"></label>
+  <label class="field"><span>Empresa o club</span><input type="text" id="${pre}Co" value="${esc(c.company||"")}"></label>
+  <label class="field"><span>NIF / CIF</span><input type="text" id="${pre}Cif" value="${esc(c.cif||"")}"></label></div>`}
+const readCust=pre=>({name:$("#"+pre+"Name").value.trim(),email:$("#"+pre+"Email").value.trim(),tel:$("#"+pre+"Tel").value.trim(),company:$("#"+pre+"Co").value.trim(),cif:$("#"+pre+"Cif").value.trim()});
+function shipFields(o,pre){return `<div class="row" style="gap:14px;flex-wrap:wrap">
+  <label class="toggle"><input type="radio" name="${pre}Ship" value="tienda"${o.ship!=="envio"?" checked":""}> Recogida en tienda</label>
+  <label class="toggle"><input type="radio" name="${pre}Ship" value="envio"${o.ship==="envio"?" checked":""}> Envío</label></div>
+  <label class="field"><span>Dirección de envío</span><input type="text" id="${pre}Addr" value="${esc(o.addr||"")}" placeholder="Calle, número, CP y población"></label>`}
+function editOrderSheet(ref){
+  const o=loadOrders().find(x=>x.ref===ref);if(!o)return;const locked=!!o.invoice, manualPay=!["card","bizum"].includes(o.pay);
+  $("#sheetRoot").innerHTML=`<div class="sheet" role="dialog" aria-label="Editar ${o.ref}"><div class="wrap" style="max-width:900px">
+    <button class="btn" type="button" data-oback="${o.ref}">← Volver al pedido</button>
+    <h1 style="font-family:'Instrument Serif',Georgia,serif;font-weight:400;text-transform:none;font-size:44px;margin:16px 0">Editar ${o.ref}</h1>
+    <form id="oeForm" data-ref="${o.ref}" class="step" novalidate style="display:flex;flex-direction:column;gap:14px">
+      <div class="label">Cliente</div>${custFields(o,"oe")}
+      <div class="label">Entrega</div>${shipFields(o,"oe")}
+      <div class="formgrid"><label class="field"><span>Fecha de compromiso</span><input type="date" id="oeDue" value="${(o.due||"").slice(0,10)}"></label>
+        <label class="field"><span>Gastos de envío</span>${moneyIn("oeShipC",o.shipping||0)}</label>
+        ${manualPay?`<label class="field"><span>Forma de pago</span><select id="oePay">${["pendiente","transfer","efectivo","tpv","bizum_tienda"].map(k=>`<option value="${k}"${o.pay===k?" selected":""}>${PAYL[k]}</option>`).join("")}</select></label>
+        <label class="toggle" style="align-self:end"><input type="checkbox" id="oePaid"${o.paid?" checked":""}> Cobrado</label>`:`<div class="note" style="grid-column:1/-1">Pagado por la web con ${PAYL[o.pay]}. Si cambias importes, la diferencia la devuelves o cobras aparte.</div>`}</div>
+      <div class="label">Líneas del pedido</div>
+      ${locked?`<div class="note warn">Este pedido ya tiene la factura ${esc(o.invoice)}: las líneas y los importes no se pueden cambiar. Puedes cambiar los datos de entrega y las notas.</div>`:""}
+      <div class="oelines">${o.items.map((i,n)=>`<div class="frow" data-oeline="${n}">
+        <span><b>${esc(i.name)}</b>${i.free?"":` <small class="dim">${esc(colorLabel(i.color))}</small>`}</span>
+        <input type="text" data-f="sizes" value="${esc(i.sizes||"")}" aria-label="Tallas"${locked?" disabled":""}>
+        <input type="number" min="0" step="1" data-f="qty" value="${i.qty}" aria-label="Unidades"${locked?" disabled":""}>
+        <input type="number" min="0" step="0.01" data-f="total" value="${(+i.total).toFixed(2)}" aria-label="Importe de la línea"${locked?" disabled":""}>
+        <span class="dim" style="font-size:12px">importe línea</span>
+        ${locked?"":`<button class="x" type="button" data-oerm="${n}" aria-label="Quitar línea">×</button>`}</div>`).join("")}</div>
+      ${locked?"":`<div id="oeFree"></div><button class="btn" type="button" data-fadd="oeFree" style="width:max-content">+ Añadir línea</button>`}
+      <label class="field"><span>Notas internas</span><textarea id="oeNotes" rows="2">${esc(o.notes||"")}</textarea></label>
+      <div class="row" style="justify-content:space-between;align-items:center"><span>Total: <b class="mono" id="oeTotal">${eur(o.total)}</b></span>
+        <button class="btn primary big" type="submit">Guardar cambios</button></div>
+      <div class="err" id="oeErr" style="color:var(--danger);font-size:14px"></div>
+    </form></div></div>`;
+  oeRecalc();
+}
+function oeRecalc(){const f=$("#oeForm");if(!f)return;let t=0;f.querySelectorAll("[data-oeline]").forEach(r=>{if(!r.hidden)t+=+r.querySelector('[data-f=total]').value||0});
+  readFree($("#oeFree")||document.createElement("div")).forEach(l=>t+=l.qty*l.unit);t+=+$("#oeShipC").value||0;$("#oeTotal").textContent=eur(r2(t))}
+function moRecalc(){const f=$("#moForm");if(!f)return;let t=0;
+  document.querySelectorAll("[data-mocp]").forEach(b=>{const cp=MO.client&&allClients()[MO.client].products.find(x=>x.id===b.dataset.mocp);if(!cp)return;const qd=MO.q[cp.id]||{};const n=Object.values(qd).reduce((a,v)=>a+(+v||0),0);const lt=n*cp.price+plusQty(qd)*BIG_SURCHARGE;t+=lt;b.querySelector("[data-molt]").textContent=n?`${n} ud · ${eur(lt)}`:"—"});
+  readFree($("#moFree")).forEach(l=>t+=l.qty*l.unit);
+  $("#moTotal").textContent=eur(r2(t))}
+document.addEventListener("input",e=>{
+  const fr=e.target.closest("[data-frow]");if(fr){const q=+fr.querySelector('[data-f=qty]').value||0,u=+fr.querySelector('[data-f=unit]').value||0;fr.querySelector('[data-f=tot]').textContent=eur(r2(q*u))}
+  if(e.target.closest("#oeForm"))oeRecalc();
+  if(e.target.dataset.mosz!=null){const [cp,sz]=e.target.dataset.mosz.split("|");MO.q[cp]=MO.q[cp]||{};MO.q[cp][sz]=Math.max(0,parseInt(e.target.value)||0)}
+  if(e.target.closest("#moForm"))moRecalc();
+  if(e.target.closest("#nqForm"))nqRecalc();
+});
+document.addEventListener("click",async e=>{
+  const add=e.target.closest("[data-fadd]");if(add){$("#"+add.dataset.fadd).insertAdjacentHTML("beforeend",freeRowHTML({qty:1}));return}
+  const frm=e.target.closest("[data-frm]");if(frm){frm.closest("[data-frow]").remove();oeRecalc();moRecalc();nqRecalc();return}
+  const ed=e.target.closest("[data-oedit]");if(ed){editOrderSheet(ed.dataset.oedit);return}
+  const ob=e.target.closest("[data-oback]");if(ob){orderSheet(ob.dataset.oback);return}
+  const rm=e.target.closest("[data-oerm]");if(rm){rm.closest("[data-oeline]").hidden=true;oeRecalc();return}
+  const ca=e.target.closest("[data-ocancel]");if(ca){patchOrder(ca.dataset.ocancel,{status:"cancelado"});orderSheet(ca.dataset.ocancel);return}
+  const un=e.target.closest("[data-ouncancel]");if(un){patchOrder(un.dataset.ouncancel,{status:"nuevo"});orderSheet(un.dataset.ouncancel);return}
+  const dl=e.target.closest("[data-odel]");if(dl){const ref=dl.dataset.odel;if(DEL_ORDER!==ref){DEL_ORDER=ref;orderSheet(ref);return}
+    DEL_ORDER=null;try{await api("/api/admin/order-delete",{ref});BOOT.orders=BOOT.orders.filter(o=>o.ref!==ref);delete BOOT.ostate[ref];saved(true);$("#sheetRoot").innerHTML="";renderAdmin("admin")}catch(x){saved(false,x.message);orderSheet(ref)}return}
+});
+document.addEventListener("submit",async e=>{
+  if(e.target.id!=="oeForm")return;e.preventDefault();const f=e.target,ref=f.dataset.ref,o=loadOrders().find(x=>x.ref===ref);
+  const c=readCust("oe"),ship=(f.querySelector('input[name=oeShip]:checked')||{}).value||"tienda";
+  const patch={...c,ship,addr:ship==="envio"?$("#oeAddr").value.trim():"",notes:$("#oeNotes").value.trim()};
+  const due=$("#oeDue").value;if(due)patch.due=new Date(due+"T12:00:00").toISOString();
+  if(!o.invoice){const items=[];f.querySelectorAll("[data-oeline]").forEach(r=>{if(r.hidden)return;const i={...o.items[+r.dataset.oeline]};
+      i.sizes=r.querySelector('[data-f=sizes]').value.trim();i.qty=Math.max(0,parseInt(r.querySelector('[data-f=qty]').value)||0);i.total=r2(+r.querySelector('[data-f=total]').value||0);if(i.qty)items.push(i)});
+    readFree($("#oeFree")).forEach((l,k)=>items.push({id:"F"+Date.now()+k,free:true,name:l.desc,sizes:l.sizes,qty:l.qty,unit:l.unit,total:r2(l.qty*l.unit),parts:[]}));
+    if(!items.length)return $("#oeErr").textContent="El pedido se queda sin líneas. Si no vale, cancélalo o elimínalo.";
+    patch.items=items;patch.shipping=r2(+$("#oeShipC").value||0);patch.subtotal=r2(items.reduce((a,i)=>a+i.total,0));patch.total=r2(patch.subtotal+patch.shipping)}
+  const pay=$("#oePay");if(pay)patch.pay=pay.value;
+  patchOrder(ref,patch);
+  const bo=BOOT.orders.find(x=>x.ref===ref);if(bo){if(patch.total!=null)bo.total=patch.total;if(patch.pay)bo.pay=patch.pay}
+  const paid=$("#oePaid");if(paid&&bo&&paid.checked!==!!bo.paid){try{await api("/api/admin/orders",{ref,patch:{},paid:paid.checked});bo.paid=paid.checked}catch(x){}}
+  orderSheet(ref);
+});
+
+/* ===== Gestión: pedido nuevo a mano ===== */
+let MO={client:"",q:{}};
+function clientOptions(sel,withNew){const cl=allClients();return `<option value="">${withNew?"— Cliente nuevo —":"— Sin área de cliente —"}</option>${Object.entries(cl).sort((a,b)=>a[1].name.localeCompare(b[1].name)).map(([k,c])=>`<option value="${esc(k)}"${sel===k?" selected":""}>${esc(c.name)} · ${esc(k)}</option>`).join("")}`}
+function clientCust(k){const c=allClients()[k];if(!c)return {};const u=(c.users||[])[0]||{},b=c.billing||{};return {name:u.name||"",email:u.email||"",tel:c.contact||"",company:b.name||c.name,cif:b.cif||""}}
+function newOrderSheet(){
+  const c=MO.client?allClients()[MO.client]:null, cust=MO.client?clientCust(MO.client):{};
+  $("#sheetRoot").innerHTML=`<div class="sheet" role="dialog" aria-label="Nuevo pedido"><div class="wrap" style="max-width:980px">
+    <button class="btn" type="button" data-back>← Pedidos</button>
+    <h1 style="font-family:'Instrument Serif',Georgia,serif;font-weight:400;text-transform:none;font-size:44px;margin:16px 0">Nuevo pedido</h1>
+    <form id="moForm" class="step" novalidate style="display:flex;flex-direction:column;gap:14px">
+      <label class="field"><span>Cliente</span><select id="moClient">${clientOptions(MO.client)}</select></label>
+      ${c?`<div class="label">Productos de su área · precio acordado</div>
+        ${c.products.length?c.products.map(cp=>{const pr=PRODUCTS.find(p=>p.id===cp.pid);if(!pr)return "";const qd=MO.q[cp.id]||{};
+          return `<div class="mocp" data-mocp="${cp.id}"><div class="row" style="justify-content:space-between"><b>${esc(cp.label)}</b><span><span class="mono">${eur(cp.price)}</span>/ud · <span class="mono" data-molt>—</span></span></div>
+            <div class="dim" style="font-size:13px">${esc(pr.name)} · ${colorLabel(cp.color)} · ${esc(specText(cp))}</div>
+            ${sizeGridHTML(pr,s=>`<label>${esc(s)}<input type="number" min="0" max="999" inputmode="numeric" data-mosz="${cp.id}|${esc(s)}" value="${qd[s]||""}" placeholder="0">${plusTag(s)}</label>`)}</div>`}).join("")
+          :`<div class="note">Este cliente aún no tiene productos en su área. Añade líneas libres o créale productos desde su ficha.</div>`}`:""}
+      <div class="label">Otras líneas (concepto, unidades y precio por unidad con IVA)</div>
+      <div id="moFree"></div><button class="btn" type="button" data-fadd="moFree" style="width:max-content">+ Añadir línea</button>
+      <div class="label">Datos del cliente</div>${custFields(cust,"mo")}
+      <div class="label">Entrega</div>${shipFields({},"mo")}
+      <div class="formgrid"><label class="field"><span>Fecha de compromiso (opcional)</span><input type="date" id="moDue"></label>
+        <label class="field"><span>Forma de pago</span><select id="moPay">${["pendiente","transfer","efectivo","tpv","bizum_tienda"].map(k=>`<option value="${k}">${PAYL[k]}</option>`).join("")}</select></label>
+        <label class="toggle" style="align-self:end"><input type="checkbox" id="moPaid"> Ya está cobrado</label></div>
+      <label class="field"><span>Notas internas</span><textarea id="moNotes" rows="2"></textarea></label>
+      <div class="row" style="justify-content:space-between;align-items:center"><span>Total (sin envío): <b class="mono" id="moTotal">0,00 €</b></span>
+        <button class="btn primary big" type="submit">Crear pedido</button></div>
+      <div class="err" id="moErr" style="color:var(--danger);font-size:14px"></div>
+    </form></div></div>`;
+  if(!c)$("#moFree").insertAdjacentHTML("beforeend",freeRowHTML({qty:1}));
+  moRecalc();
+}
+document.addEventListener("change",e=>{if(e.target.id==="moClient"){MO={client:e.target.value,q:{}};newOrderSheet()}});
+document.addEventListener("click",e=>{if(e.target.closest("#moNew")){MO={client:"",q:{}};newOrderSheet()}if(e.target.closest("#nqNew")){NQ={client:""};newQuoteSheet()}});
+document.addEventListener("submit",async e=>{
+  if(e.target.id!=="moForm")return;e.preventDefault();const f=e.target,btn=f.querySelector("button[type=submit]");$("#moErr").textContent="";
+  const cl=MO.client?allClients()[MO.client]:null, items=[];
+  if(cl)cl.products.forEach(cp=>{const qd=Object.fromEntries(Object.entries(MO.q[cp.id]||{}).filter(([,v])=>v>0));const n=Object.values(qd).reduce((a,b)=>a+b,0);if(!n)return;
+    const pr=PRODUCTS.find(p=>p.id===cp.pid),cid="L"+Date.now()+cp.id;
+    items.push({id:cid,cpId:cp.id,client:MO.client,q:qd,design:snapshotDesign(cid,cp.pid,cp.color,cp.els.map(x=>({...x})),null),pid:cp.pid,name:cp.label,shape:pr.shape,color:cp.color,qty:n,
+      total:r2(n*cp.price+plusQty(qd)*BIG_SURCHARGE),days:prodDays(n),sizes:Object.entries(qd).map(([k,v])=>`${v}×${k}`).join(" "),parts:[`${cl.name} · pedido por Gestión`,specText(cp)]})});
+  const free=readFree($("#moFree")),cust=readCust("mo"),ship=(f.querySelector('input[name=moShip]:checked')||{}).value||"tienda";
+  if(!items.length&&!free.length)return $("#moErr").textContent="Añade tallas a algún producto o una línea con concepto, unidades y precio.";
+  if(!cust.name&&!cl)return $("#moErr").textContent="Escribe el nombre del cliente.";
+  btn.disabled=true;btn.textContent="Creando…";
+  try{const keys=[...new Set(items.flatMap(i=>i.design.els.flatMap(x=>[x.file,x.mask,x.orig]).filter(Boolean)))];
+    for(const k of keys){try{await uploadFile(k,PH[k])}catch(x){if(x.status!==409)throw x}}
+    const r=await api("/api/admin/order-create",{client:MO.client||null,items,free,customer:{...cust,ship,addr:$("#moAddr").value.trim()},pay:$("#moPay").value,paid:$("#moPaid").checked,due:$("#moDue").value,notes:$("#moNotes").value});
+    location.hash="admin";location.reload()}
+  catch(x){btn.disabled=false;btn.textContent="Crear pedido";$("#moErr").textContent=x.message}
+});
+
+/* ===== Gestión: presupuesto nuevo (el cliente lo ve y lo acepta en su área) ===== */
+let NQ={client:""};
+function nqRecalc(){const n=$("#nqTotal");if(!n)return;n.textContent=eur(r2(readFree($("#nqLines")).reduce((a,l)=>a+l.qty*l.unit,0)))}
+function newQuoteSheet(){
+  const c=NQ.client?allClients()[NQ.client]:null;
+  const in10=new Date(Date.now()+15*864e5).toISOString().slice(0,10);
+  $("#sheetRoot").innerHTML=`<div class="sheet" role="dialog" aria-label="Nuevo presupuesto"><div class="wrap" style="max-width:900px">
+    <button class="btn" type="button" data-back>← Pedidos</button>
+    <h1 style="font-family:'Instrument Serif',Georgia,serif;font-weight:400;text-transform:none;font-size:44px;margin:16px 0">Nuevo presupuesto</h1>
+    <form id="nqForm" class="step" novalidate style="display:flex;flex-direction:column;gap:14px">
+      <label class="field"><span>Cliente</span><select id="nqClient">${clientOptions(NQ.client,true)}</select></label>
+      ${c?`<div class="note">Lo verá en su área de cliente, en «Presupuestos», y podrá aceptarlo y pagarlo.</div>
+        ${c.products.length?`<div class="row" style="gap:6px;flex-wrap:wrap"><span class="dim" style="font-size:13px">Añadir de su área:</span>${c.products.map(cp=>`<button class="chip" type="button" data-nqcp="${cp.id}">${esc(cp.label)} · ${eur(cp.price)}</button>`).join("")}</div>`:""}`
+        :`<div class="label">Cliente nuevo · se le crea el área de cliente con una contraseña provisional</div>
+        <div class="formgrid"><label class="field"><span>Club, empresa o nombre</span><input type="text" id="nqCo"></label>
+          <label class="field"><span>Persona de contacto</span><input type="text" id="nqName"></label>
+          <label class="field"><span>Email (será su acceso)</span><input type="email" id="nqEmail"></label>
+          <label class="field"><span>Teléfono</span><input type="tel" id="nqTel"></label>
+          <label class="field"><span>Tipo</span><input type="text" id="nqType" placeholder="Club, empresa, evento…"></label></div>`}
+      <div class="label">Líneas (concepto, tallas opcional, unidades y precio por unidad con IVA)</div>
+      <div id="nqLines"></div><button class="btn" type="button" data-fadd="nqLines" style="width:max-content">+ Añadir línea</button>
+      <div class="formgrid"><label class="field"><span>Válido hasta</span><input type="date" id="nqValid" value="${in10}"></label>
+        <label class="field"><span>Plazo de entrega</span><input type="text" id="nqDays" placeholder="p. ej. 5 días laborables desde la aceptación"></label></div>
+      <label class="field"><span>Notas para el cliente</span><textarea id="nqNotes" rows="2"></textarea></label>
+      <div class="row" style="justify-content:space-between;align-items:center"><span>Total con IVA: <b class="mono" id="nqTotal">0,00 €</b></span>
+        <button class="btn primary big" type="submit">Crear y enviar al área del cliente</button></div>
+      <div class="err" id="nqErr" style="color:var(--danger);font-size:14px"></div>
+    </form><div id="nqDone"></div></div></div>`;
+  $("#nqLines").insertAdjacentHTML("beforeend",freeRowHTML({qty:1}));
+}
+document.addEventListener("change",e=>{if(e.target.id==="nqClient"){NQ={client:e.target.value};newQuoteSheet()}});
+document.addEventListener("click",e=>{const b=e.target.closest("[data-nqcp]");if(!b)return;const cp=allClients()[NQ.client].products.find(x=>x.id===b.dataset.nqcp);
+  const first=$("#nqLines [data-frow]");if(first&&!first.querySelector('[data-f=desc]').value)first.remove();
+  $("#nqLines").insertAdjacentHTML("beforeend",freeRowHTML({desc:cp.label,qty:1,unit:cp.price}));nqRecalc()});
+document.addEventListener("submit",async e=>{
+  if(e.target.id!=="nqForm")return;e.preventDefault();const btn=e.target.querySelector("button[type=submit]");$("#nqErr").textContent="";
+  const lines=readFree($("#nqLines"));if(!lines.length)return $("#nqErr").textContent="Añade al menos una línea con concepto, unidades y precio.";
+  const body={client:NQ.client||null,lines,validUntil:$("#nqValid").value,days:$("#nqDays").value,notes:$("#nqNotes").value};
+  if(!NQ.client){body.newClient={company:$("#nqCo").value,name:$("#nqName").value,email:$("#nqEmail").value,tel:$("#nqTel").value,type:$("#nqType").value};
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(body.newClient.email.trim()))return $("#nqErr").textContent="Escribe el email del cliente nuevo: será su acceso.";}
+  btn.disabled=true;btn.textContent="Creando…";
+  try{const r=await api("/api/admin/quote-create",body);
+    const site=location.origin, txt=`Hola${body.newClient&&body.newClient.name?" "+body.newClient.name.split(" ")[0]:""}, te hemos preparado el presupuesto ${r.ref}. Puedes verlo, aceptarlo y pagarlo en tu área de cliente: ${site}/#area${r.pass?` · Usuario: ${r.email} · Contraseña provisional: ${r.pass} (cámbiala en «Mi perfil»)`:""}`;
+    e.target.remove();$("#nqDone").innerHTML=`<div class="step"><div class="note ok">✓ Presupuesto ${esc(r.ref)} creado${r.pass?" y área de cliente dada de alta":""}. Ya lo ve en su área.</div>
+      <div class="label">Mensaje para enviarle (email o WhatsApp)</div><div class="note" style="user-select:all">${esc(txt)}</div>
+      <div class="row" style="gap:8px"><button class="btn" type="button" data-copy="${esc(txt)}">Copiar mensaje</button><button class="btn dark" type="button" data-reloadadm>Volver a Gestión</button></div></div>`}
+  catch(x){btn.disabled=false;btn.textContent="Crear y enviar al área del cliente";$("#nqErr").textContent=x.message}
+});
+document.addEventListener("click",e=>{if(e.target.closest("[data-reloadadm]")){location.hash="admin";location.reload()}});
 function newClientSheet(){
   $("#sheetRoot").innerHTML=`<div class="sheet" role="dialog" aria-label="Nuevo cliente"><div class="wrap" style="max-width:640px">
     <button class="btn" type="button" data-back>← Clientes</button>

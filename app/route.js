@@ -25,7 +25,7 @@ export async function GET() {
     boot.adminEmail = session.email;
     if (kv.ep_clients) boot.kv.ep_clients = stripUsers(kv.ep_clients);
     if (kv.ep_admin) boot.kv.ep_admin = stripUsers(kv.ep_admin);
-    const o = await q("select o.ref,o.status,o.paid,o.total,o.pay,o.data,o.state,o.created_at,i.number invoice from orders o left join invoices i on i.ref=o.ref where o.paid or o.pay='transfer' order by o.created_at desc limit 2000");
+    const o = await q("select o.ref,o.status,o.paid,o.total,o.pay,o.data,o.state,o.created_at,i.number invoice from orders o left join invoices i on i.ref=o.ref where o.paid or o.pay not in ('card','bizum') order by o.created_at desc limit 2000");
     boot.orders = o.rows.map(orderForShop);
     o.rows.forEach((r) => { if (r.state && Object.keys(r.state).length) boot.ostate[r.ref] = r.state; });
     const qs = await q("select data from quotes order by created_at desc limit 1000");
@@ -35,9 +35,11 @@ export async function GET() {
     boot.session = { key: session.client, email: session.email, name: session.name };
     const o = await q(
       `select o.ref,o.status,o.paid,o.total,o.pay,o.data,o.state,o.created_at,i.number invoice
-       from orders o left join invoices i on i.ref=o.ref where o.client=$1 and (o.paid or o.pay='transfer') order by o.created_at desc limit 500`,
+       from orders o left join invoices i on i.ref=o.ref where o.client=$1 and (o.paid or o.pay not in ('card','bizum')) and coalesce(o.state->>'status',o.status)<>'cancelado' order by o.created_at desc limit 500`,
       [session.client]);
     boot.myOrders = o.rows.map((r) => ({ ...orderForShop(r), ...(r.state || {}), invoice: r.invoice || null }));
+    const mq = await q("select data from quotes where data->>'client'=$1 and data->>'status' in ('enviado','aceptado') and data ? 'answer' order by created_at desc limit 200", [session.client]);
+    boot.myQuotes = mq.rows.map((r) => r.data).filter((x) => x.answer && x.answer.total);
   }
   boot.blob = blobEnabled();
   const cfg = redsysConfig();
