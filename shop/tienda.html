@@ -419,6 +419,12 @@ form.step>.field,#addrBox>.field,#addrBox>.row{flex:none}
 .fmeas{display:flex;flex-wrap:wrap;gap:6px}.fmeas span{border:1px solid var(--line);border-radius:6px;padding:4px 8px;font:12px var(--f-mono);display:flex;gap:6px}
 .kindtag{display:inline-block;margin-top:3px;font:600 10px/1 var(--f-body);text-transform:uppercase;letter-spacing:.06em;padding:3px 6px;border-radius:4px;background:#e4f23a;color:#15171c}
 .kindtag.k-contacto{background:#dfe6ff}
+.atabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:6px 0 16px;overflow-x:auto}
+.atabs button{background:none;border:0;border-bottom:2px solid transparent;padding:10px 14px;font:600 15px var(--f-body);color:var(--muted);cursor:pointer;white-space:nowrap}
+.atabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--ink)}.atabs small{font:12px var(--f-mono);opacity:.7;margin-left:4px}
+.olist{display:flex;flex-direction:column;gap:10px;max-width:900px}.ocard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:14px;align-items:start}
+.pgrid form.step{display:flex;flex-direction:column;gap:10px}
 .supviews{display:flex;gap:8px;flex-wrap:wrap}.supviews figure{margin:0;width:96px;font-size:11px;text-align:center}.supviews img{width:96px;height:106px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:6px}
 .fwash{display:flex;gap:8px;flex-wrap:wrap}.fwash img{width:30px;height:30px;object-fit:contain}
 
@@ -2015,11 +2021,96 @@ function renderArea(id){
         <button class="btn ghost" type="button" id="logoutBtn">Cerrar sesión</button>
       </div>
     </div>
-    <div class="cprods">${c.products.map(cp=>cprodHTML(cp)).join("")}</div>
+    ${areaTabs(c,code)}
   </div>`;
   if(!$("#abar")){document.body.insertAdjacentHTML("beforeend",`<div class="abar" id="abar" hidden><div class="wrap"><div><b id="aTot"></b><small id="aSub"></small></div><button class="btn big" type="button" id="aAdd">Añadir al carrito</button></div></div>`)}
   updateAbar();
 }
+
+/* ===== Área de cliente: pestañas Prendas · Pedidos · Perfil ===== */
+let ATAB="prendas", INV_FOR=null;
+const IS_CLIENT=BOOT.role==="client";
+function myOrders(code){return IS_CLIENT?(BOOT.myOrders||[]):loadOrders().filter(o=>o.client===code)}
+function areaTabs(c,code){
+  const os=myOrders(code);
+  const t=(k,l)=>`<button type="button" role="tab" data-atab="${k}" aria-selected="${ATAB===k}">${l}</button>`;
+  return `<div class="atabs" role="tablist">${t("prendas",`Mis prendas <small>${c.products.length}</small>`)}${t("pedidos",`Mis pedidos <small>${os.length}</small>`)}${t("perfil","Mi perfil")}</div>
+    ${ATAB==="pedidos"?ordersPane(c,code,os):ATAB==="perfil"?profilePane(c):
+      c.products.length?`<div class="cprods">${c.products.map(cp=>cprodHTML(cp)).join("")}</div>`
+      :`<div class="step" style="max-width:640px"><h3 style="margin:0">Aún no tienes prendas guardadas</h3><p class="dim" style="margin:0">Te preparamos vuestras prendas con el logo y los colores del club o la empresa para que repetir sea elegir tallas y pagar. Escríbenos a <a href="mailto:${SHOP.email}">${SHOP.email}</a> o por WhatsApp al ${SHOP.whats}. Mientras tanto puedes <a href="#catalogo">pedir desde el catálogo</a>.</p></div>`}`;
+}
+const billingOf=(c,o)=>{const b=c.billing||{};return {name:b.name||(o&&o.company)||c.name||"",cif:b.cif||(o&&o.cif)||"",addr:b.addr||"",zip:b.zip||"",city:b.city||"",province:b.province||""}};
+function billingFields(b,pre){return `<div class="formgrid">
+  <label class="field" style="grid-column:1/-1"><span>Razón social o nombre</span><input type="text" id="${pre}Name" value="${esc(b.name)}"></label>
+  <label class="field"><span>NIF / CIF</span><input type="text" id="${pre}Cif" value="${esc(b.cif)}"></label>
+  <label class="field"><span>Dirección fiscal</span><input type="text" id="${pre}Addr" value="${esc(b.addr)}"></label>
+  <label class="field"><span>Código postal</span><input type="text" inputmode="numeric" id="${pre}Zip" value="${esc(b.zip)}"></label>
+  <label class="field"><span>Población</span><input type="text" id="${pre}City" value="${esc(b.city)}"></label>
+  <label class="field"><span>Provincia</span><input type="text" id="${pre}Prov" value="${esc(b.province)}"></label></div>`}
+const readBilling=pre=>({name:$("#"+pre+"Name").value,cif:$("#"+pre+"Cif").value,addr:$("#"+pre+"Addr").value,zip:$("#"+pre+"Zip").value,city:$("#"+pre+"City").value,province:$("#"+pre+"Prov").value});
+function ordersPane(c,code,os){
+  if(!os.length)return `<div class="step" style="max-width:640px"><h3 style="margin:0">Todavía no hay pedidos</h3><p class="dim" style="margin:0">Cuando hagáis un pedido desde el área aparecerá aquí, con su estado, la hoja del pedido y la factura.</p></div>`;
+  return `<div class="olist">${os.map(o=>`<div class="ocard">
+    <div class="row" style="justify-content:space-between;gap:10px;align-items:flex-start">
+      <div><b class="mono">${esc(o.ref)}</b> · ${dshort(o.date)}${o.by?` · ${esc(o.by)}`:""}<br><small class="dim">${(o.items||[]).map(i=>`${i.qty} × ${esc(i.name)}`).join(" · ")}</small></div>
+      <div style="text-align:right"><b class="mono">${eur(o.total)}</b><br><span class="st ${o.status||"nuevo"}">${esc((ST[o.status]||"Recibido").replace(" · revisar archivo",""))}</span>${o.pay==="transfer"&&!o.paid?`<br><small class="dim">Transferencia pendiente</small>`:""}</div></div>
+    <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap">
+      <a class="btn" href="/api/doc?type=pedido&ref=${encodeURIComponent(o.ref)}" target="_blank" rel="noopener">Ver pedido</a>
+      ${o.invoice?`<a class="btn dark" href="/api/doc?type=factura&ref=${encodeURIComponent(o.ref)}" target="_blank" rel="noopener">Descargar factura ${esc(o.invoice)}</a>`
+        :IS_CLIENT?`<button class="btn dark" type="button" data-invopen="${esc(o.ref)}">Generar factura</button>`:`<span class="dim">Sin factura</span>`}
+    </div>
+    ${INV_FOR===o.ref&&!o.invoice?`<form class="invform" data-invref="${esc(o.ref)}" novalidate style="margin-top:12px;display:flex;flex-direction:column;gap:10px">
+      <div class="label">Datos de la factura</div>${billingFields(billingOf(c,o),"iv")}
+      <p class="dim" style="margin:0;font-size:13px">Revisa los datos: una vez generada, la factura no se puede cambiar.</p>
+      <div class="err" id="ivErr" style="color:var(--danger);font-size:14px"></div>
+      <div class="row" style="gap:8px"><button class="btn primary" type="submit">Generar y descargar</button><button class="btn ghost" type="button" data-invopen="">Cancelar</button></div></form>`:""}
+  </div>`).join("")}</div>`;
+}
+function profilePane(c){
+  if(!IS_CLIENT)return `<div class="note">Estás viendo el área como Gestión. El perfil lo edita el propio cliente.</div>`;
+  const b=billingOf(c,null);
+  return `<div class="pgrid">
+    <form class="step" id="pfLogo" novalidate><div class="step-h"><h3>Imagen del perfil</h3></div>
+      <div class="row" style="gap:14px"><span class="crest" style="width:84px;height:84px;border-radius:50%;border:1px solid var(--line);background:var(--surface) ${c.crest?`url('${c.crest}')`:""} center/70% no-repeat;flex:none"></span>
+      <div style="display:flex;flex-direction:column;gap:6px"><label class="btn" style="cursor:pointer">${c.crest?"Cambiar imagen":"Subir escudo o logo"}<input type="file" id="pfCrest" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden></label>
+      ${c.crest?`<button class="btn ghost" type="button" id="pfCrestDel">Quitar</button>`:""}<span class="dim" style="font-size:13px">PNG, JPG, WEBP o SVG</span></div></div>
+      <div class="err" id="pfLogoErr" style="color:var(--danger);font-size:14px"></div></form>
+    <form class="step" id="pfBill" novalidate><div class="step-h"><h3>Datos de facturación</h3></div>
+      ${billingFields(b,"pb")}<div class="err" id="pbErr" style="color:var(--danger);font-size:14px"></div>
+      <button class="btn primary" type="submit" style="width:max-content">Guardar datos</button></form>
+    <form class="step" id="pfPass" novalidate><div class="step-h"><h3>Cambiar contraseña</h3></div>
+      <label class="field"><span>Contraseña actual</span><input type="password" id="ppOld" autocomplete="current-password"></label>
+      <label class="field"><span>Contraseña nueva (mín. 8)</span><input type="password" id="ppNew" autocomplete="new-password"></label>
+      <label class="field"><span>Repite la nueva</span><input type="password" id="ppNew2" autocomplete="new-password"></label>
+      <div class="err" id="ppErr" style="color:var(--danger);font-size:14px"></div>
+      <button class="btn primary" type="submit" style="width:max-content">Cambiar contraseña</button></form>
+    <div class="step"><div class="step-h"><h3>Tu acceso</h3></div><div><b>${esc(SESSION.name)}</b><br><span class="dim">${esc(SESSION.email)}</span></div>
+      <div class="dim" style="font-size:13px">Usuarios con acceso: ${(c.users||[]).map(u=>esc(u.name)).join(", ")||"—"}. Para añadir a alguien más, escríbenos.</div></div>
+  </div>`;
+}
+const reArea=()=>CUR&&renderArea("cliente-"+CUR.code.toLowerCase());
+function okMsg(form,txt){const n=document.createElement("div");n.className="note ok";n.textContent="✓ "+txt;form.appendChild(n);setTimeout(()=>n.remove(),3500)}
+document.addEventListener("click",e=>{
+  const t=e.target.closest("[data-atab]");if(t){ATAB=t.dataset.atab;INV_FOR=null;reArea();return}
+  const iv=e.target.closest("[data-invopen]");if(iv){INV_FOR=iv.dataset.invopen||null;reArea();return}
+  if(e.target.closest("#pfCrestDel")){api("/api/account",{action:"profile",crest:null}).then(r=>{CUR.c.crest="";const ex=BOOT.kv.ep_clients||{};if(ex[CUR.code])ex[CUR.code].crest="";reArea()}).catch(x=>$("#pfLogoErr").textContent=x.message)}
+});
+document.addEventListener("change",e=>{if(e.target.id!=="pfCrest"||!e.target.files[0])return;
+  shrinkImage(e.target.files[0],400).then(d=>api("/api/account",{action:"profile",crest:d})).then(r=>{const ex=BOOT.kv.ep_clients||{};if(ex[CUR.code])ex[CUR.code].crest=r.crest;reArea()})
+    .catch(x=>{const n=$("#pfLogoErr");if(n)n.textContent=x.message})});
+document.addEventListener("submit",async e=>{const f=e.target;
+  if(f.id==="pfPass"){e.preventDefault();const a=$("#ppOld").value,b=$("#ppNew").value,c2=$("#ppNew2").value;$("#ppErr").textContent="";
+    if(b.length<8)return $("#ppErr").textContent="La contraseña nueva necesita al menos 8 caracteres.";if(b!==c2)return $("#ppErr").textContent="Las dos contraseñas nuevas no coinciden.";
+    try{await api("/api/account",{action:"password",current:a,next:b});f.reset();okMsg(f,"Contraseña cambiada")}catch(x){$("#ppErr").textContent=x.message}}
+  if(f.id==="pfBill"){e.preventDefault();try{const r=await api("/api/account",{action:"profile",billing:readBilling("pb")});const ex=BOOT.kv.ep_clients||{};if(ex[CUR.code])ex[CUR.code].billing=r.billing;okMsg(f,"Datos guardados")}catch(x){$("#pbErr").textContent=x.message}}
+  if(f.classList.contains("invform")){e.preventDefault();const ref=f.dataset.invref,btn=f.querySelector("button[type=submit]");btn.disabled=true;
+    const w=window.open("about:blank","_blank");
+    try{const r=await api("/api/account",{action:"invoice",ref,billing:readBilling("iv")});
+      const o=(BOOT.myOrders||[]).find(x=>x.ref===ref);if(o)o.invoice=r.number;INV_FOR=null;
+      {const ex=BOOT.kv.ep_clients||{},cl=ex[CUR.code];if(cl&&!(cl.billing&&cl.billing.cif))cl.billing=readBilling("iv")}reArea();
+      const url=`/api/doc?type=factura&ref=${encodeURIComponent(ref)}`;if(w)w.location=url;else location.href=url}
+    catch(x){if(w)w.close();btn.disabled=false;$("#ivErr").textContent=x.message}}
+});
 function cprodHTML(cp){
   const pr=PRODUCTS.find(p=>p.id===cp.pid), side=ASIDE[cp.id]||"front", q=AQ[cp.id]||{};
   const hasBack=cp.els.some(e=>e.side==="back");
@@ -2521,13 +2612,14 @@ function orderSheet(ref){
         <div class="step"><div class="step-h"><h3>Entrega y pago</h3></div>
           <div>${o.ship==="tienda"?"Recogida en tienda":"Envío a: "+esc(o.addr||"")}</div>
           <div>Compromiso: <b>${dateES(new Date(o.due))}</b></div>
+          <div class="row" style="gap:6px;flex-wrap:wrap;margin:4px 0"><a class="btn" style="padding:4px 10px;font-size:13px" href="/api/doc?type=pedido&ref=${encodeURIComponent(o.ref)}" target="_blank" rel="noopener">Hoja de pedido</a>${o.invoice?`<a class="btn dark" style="padding:4px 10px;font-size:13px" href="/api/doc?type=factura&ref=${encodeURIComponent(o.ref)}" target="_blank" rel="noopener">Factura ${esc(o.invoice)}</a>`:`<span class="dim" style="font-size:13px">Sin factura</span>`}</div>
           ${o.pay==="transfer"?`<div>Transferencia · <b class="mono">${eur(o.total)}</b> · ${o.paid?`<span class="st listo">Cobrada</span>`:`<span class="st incidencia">Pendiente de cobro</span> <button class="btn" type="button" data-paidref="${o.ref}" style="padding:3px 10px;font-size:13px">Marcar como cobrada</button>`}</div>`
             :`<div>Pagado con ${o.pay==="bizum"?"Bizum":"tarjeta"} · <b class="mono">${eur(o.total)}</b></div>`}</div>
         ${(o.refunds||[]).length?`<div class="step"><div class="step-h"><h3>Devoluciones</h3></div>
           ${o.refunds.map(r=>`<div class="row" style="justify-content:space-between;gap:8px"><span style="flex:1;min-width:0">${esc(r.label)}<br><small class="dim">${dshort(r.date)} · ${r.done?"devuelto":"pendiente"}</small></span><b class="mono">−${eur(r.amount)}</b></div>`).join("")}
           <div class="row" style="justify-content:space-between;border-top:1px solid var(--line);padding-top:8px"><span>Total del pedido</span><b class="mono">${eur(r2(o.total-o.refunds.reduce((a,r)=>a+r.amount,0)))}</b></div>
           ${o.refunds.some(r=>!r.done)?`<div class="note warn">Pendiente de devolver: <b>${eur(r2(o.refunds.filter(r=>!r.done).reduce((a,r)=>a+r.amount,0)))}</b> por ${o.pay==="bizum"?"Bizum":"tarjeta"}.</div>
-          <button class="btn primary" type="button" data-refdone="${o.ref}">Marcar como devuelto</button><span class="dim">En la web real el botón hará la devolución por Stripe directamente.</span>`:`<div class="note ok">Devolución hecha.</div>`}</div>`:""}
+          <button class="btn primary" type="button" data-refdone="${o.ref}">Marcar como devuelto</button><span class="dim">Haz la devolución desde el panel de Redsys (o por Bizum) y márcala aquí.</span>`:`<div class="note ok">Devolución hecha.</div>`}</div>`:""}
         ${msgBox(o,msg)}
       </aside>
     </div></div></div>`;

@@ -8,7 +8,7 @@ import { blobEnabled } from "@/lib/files";
 export const dynamic = "force-dynamic";
 
 function orderForShop(r) {
-  return { ...r.data, ref: r.ref, total: +r.total, status: r.data.status || "nuevo", paid: r.paid, pay: r.pay, date: r.created_at.toISOString() };
+  return { ...r.data, ref: r.ref, total: +r.total, status: r.data.status || "nuevo", paid: r.paid, pay: r.pay, date: r.created_at.toISOString(), invoice: r.invoice || null };
 }
 
 export async function GET() {
@@ -25,7 +25,7 @@ export async function GET() {
     boot.adminEmail = session.email;
     if (kv.ep_clients) boot.kv.ep_clients = stripUsers(kv.ep_clients);
     if (kv.ep_admin) boot.kv.ep_admin = stripUsers(kv.ep_admin);
-    const o = await q("select ref,status,paid,total,pay,data,state,created_at from orders where paid or pay='transfer' order by created_at desc limit 2000");
+    const o = await q("select o.ref,o.status,o.paid,o.total,o.pay,o.data,o.state,o.created_at,i.number invoice from orders o left join invoices i on i.ref=o.ref where o.paid or o.pay='transfer' order by o.created_at desc limit 2000");
     boot.orders = o.rows.map(orderForShop);
     o.rows.forEach((r) => { if (r.state && Object.keys(r.state).length) boot.ostate[r.ref] = r.state; });
     const qs = await q("select data from quotes order by created_at desc limit 1000");
@@ -33,8 +33,11 @@ export async function GET() {
   } else if (role === "client") {
     Object.assign(boot.kv, clientSlice(kv, session.client));
     boot.session = { key: session.client, email: session.email, name: session.name };
-    const fl = await q("select key,url from files where scope='client' and key like $1", [`cl_${session.client}_%`]);
-    fl.rows.forEach((f) => { boot.files[f.key] = f.url; });
+    const o = await q(
+      `select o.ref,o.status,o.paid,o.total,o.pay,o.data,o.state,o.created_at,i.number invoice
+       from orders o left join invoices i on i.ref=o.ref where o.client=$1 and (o.paid or o.pay='transfer') order by o.created_at desc limit 500`,
+      [session.client]);
+    boot.myOrders = o.rows.map((r) => ({ ...orderForShop(r), ...(r.state || {}), invoice: r.invoice || null }));
   }
   boot.blob = blobEnabled();
   const cfg = redsysConfig();
