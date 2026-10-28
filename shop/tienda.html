@@ -438,6 +438,10 @@ form.step>.field,#addrBox>.field,#addrBox>.row{flex:none}
 .pfbars{display:flex;flex-direction:column;gap:8px}.pfbars>div{display:grid;grid-template-columns:130px 1fr 90px;gap:8px;align-items:center;font-size:14px}
 .pfbars .bar{height:10px;background:var(--surface-2);border-radius:5px;overflow:hidden}.pfbars .bar i{display:block;height:100%;background:var(--ink)}.pfbars b{text-align:right}
 .pfmini{display:grid;grid-template-columns:1fr auto;gap:4px 10px;font-size:14px}.pfmini>:nth-child(even){text-align:right}
+.frow.hasitem{grid-template-rows:auto auto}.frow .fitem{grid-column:1/-1;display:flex;gap:10px;align-items:center}
+.fmock{display:inline-flex;gap:4px;flex:none}.fmock .mini{width:58px;background:var(--surface-2);border:1px solid var(--line)}.fmock .mini svg{position:absolute;inset:0;width:100%;height:100%}
+.qmock{margin-bottom:4px}.qmock .fmock .mini{width:96px}.pickbar{margin-top:12px;padding:12px;border-radius:var(--r);background:#e4f23a;color:#15171c;display:flex;flex-direction:column;gap:8px;font-size:14px}
+.pickbar .btn.ghost{color:#15171c}
 .supviews{display:flex;gap:8px;flex-wrap:wrap}.supviews figure{margin:0;width:96px;font-size:11px;text-align:center}.supviews img{width:96px;height:106px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:6px}
 .fwash{display:flex;gap:8px;flex-wrap:wrap}.fwash img{width:30px;height:30px;object-fit:contain}
 
@@ -1701,7 +1705,7 @@ function renderTill(){
     ${probs.length?`<div class="err">${probs.map(esc).join("<br>")}</div>`:""}
     ${S.team.on?overlaps(S.els,S.team).map(m=>`<div class="nudge">⚠ ${esc(m)}. Muévelo si no es lo que quieres.</div>`).join(""):""}
     <button class="btn primary big" type="button" id="addCart" ${probs.length?"disabled":""}>Añadir al carrito · ${eur(Q.total)}</button>
-    <button class="btn save" type="button" id="saveClient" ${S.els.length?"":"disabled"}>Guardar este diseño en el área de un cliente</button>`;
+    <button class="btn save" type="button" id="saveClient" ${S.els.length?"":"disabled"}>Guardar este diseño en el área de un cliente</button>${pickBanner()}`;
   $("#mTotal").textContent=eur(Q.total); $("#mUnit").textContent=Q.qty?`${Q.qty} ud · ${eur(Q.unit)}/ud`:"Configura tu pedido";
   $("#mAdd").disabled=!!probs.length;
 }
@@ -2064,7 +2068,7 @@ function quotesPane(c,qs){
     return `<div class="ocard"><div class="row" style="justify-content:space-between;gap:10px;align-items:flex-start">
       <div><b class="mono">${esc(q.ref)}</b> · ${dshort(q.answer.date||q.date)}${q.validUntil?` · válido hasta ${dshort(q.validUntil+"T12:00:00")}`:""}</div>
       <div style="text-align:right"><b class="mono">${eur(+q.answer.total)}</b><br><span class="st ${q.status==="aceptado"?"listo":exp?"entregado":"nuevo"}">${q.status==="aceptado"?"Aceptado":exp?"Caducado":"Pendiente de aceptar"}</span></div></div>
-      <table class="qlines"><tbody>${L.map(l=>`<tr><td>${esc(l.name)}${l.sizes?` <small class="dim">${esc(l.sizes)}</small>`:""}</td><td class="mono">${l.qty} ud</td><td class="mono" style="text-align:right">${eur(+l.total)}</td></tr>`).join("")}</tbody></table>
+      <table class="qlines"><tbody>${L.map((l,li)=>`<tr><td>${l.item&&l.item.design?`<div class="qmock">${lineMock(l.item,"q"+q.ref+li)}</div>`:""}${esc(l.name)}${l.sizes?` <small class="dim">${esc(l.sizes)}</small>`:""}${l.item&&(l.item.parts||[]).length?`<br><small class="dim">${esc(l.item.parts.join(" · "))}</small>`:""}</td><td class="mono">${l.qty} ud</td><td class="mono" style="text-align:right">${eur(+l.total)}</td></tr>`).join("")}</tbody></table>
       ${q.answer.days?`<div class="dim" style="font-size:13px">Plazo: ${esc(q.answer.days)}</div>`:""}${q.answer.notes?`<div class="dim" style="font-size:13px">${esc(q.answer.notes)}</div>`:""}
       <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap"><a class="btn" href="/api/doc?type=presupuesto&ref=${encodeURIComponent(q.ref)}" target="_blank" rel="noopener">Ver presupuesto</a>
         ${q.status==="enviado"&&!exp&&IS_CLIENT&&q.lines?`<button class="btn primary" type="button" data-qacc="${esc(q.ref)}">Aceptar y pagar</button>`:""}
@@ -2649,7 +2653,7 @@ function orderSheet(ref){
     <div class="co">
       <div class="od-items">
         <div class="label">Hoja de producción · ${units} ud</div>
-        ${o.items.map((i,n)=>i.free?`<div class="od-item"><div style="min-width:0"><b>${esc(i.name)}</b> · <span class="mono">${i.qty} ud</span> · <span class="mono">${eur(i.total)}</span>${i.sizes?`<div class="dim">${esc(i.sizes)}</div>`:""}${(i.parts||[]).length?`<ul>${i.parts.map(p=>`<li>${esc(p)}</li>`).join("")}</ul>`:""}</div></div>`:`<div class="od-item">${i.design?"":`<svg viewBox="0 0 400 440" aria-hidden="true" style="width:90px">${i.pid&&prodById(i.pid)?prodSVG(prodById(i.pid),i.color,"front","o"+o.ref+n):garmentSVG(i.shape,COLORS[i.color][1],"front","o"+o.ref+n)}</svg>`}
+        ${o.items.map((i,n)=>i.free&&!i.design?`<div class="od-item"><div style="min-width:0"><b>${esc(i.name)}</b> · <span class="mono">${i.qty} ud</span> · <span class="mono">${eur(i.total)}</span>${i.sizes?`<div class="dim">${esc(i.sizes)}</div>`:""}${(i.parts||[]).length?`<ul>${i.parts.map(p=>`<li>${esc(p)}</li>`).join("")}</ul>`:""}</div></div>`:`<div class="od-item">${i.design?"":`<svg viewBox="0 0 400 440" aria-hidden="true" style="width:90px">${i.pid&&prodById(i.pid)?prodSVG(prodById(i.pid),i.color,"front","o"+o.ref+n):garmentSVG(i.shape,COLORS[i.color][1],"front","o"+o.ref+n)}</svg>`}
           <div style="min-width:0"><b>${esc(i.name)}</b> · ${colorLabel(i.color)} · <span class="mono">${i.qty} ud</span>
           <div class="sztbl">${i.sizes.split(" ").filter(Boolean).map(t=>{const [q,sz]=t.split("×");return `<span>${sz} <b>${q}</b></span>`}).join("")}</div>
           ${(i.removed||[]).length?`<div class="note" style="margin-top:8px">Quitado por la tienda: ${i.removed.map(x=>`${esc(x.label)}${x.amount?` (−${eur(x.amount)})`:""}`).join(" · ")}</div>`:""}
@@ -2742,7 +2746,10 @@ document.addEventListener("change",e=>{const t=e.target.closest("[data-cltransfe
 /* ===== Gestión: editar, cancelar y eliminar pedidos ===== */
 let DEL_ORDER=null;
 const moneyIn=(id,v)=>`<input type="number" step="0.01" min="0" id="${id}" value="${(+v||0).toFixed(2)}">`;
-function freeRowHTML(l,pre){return `<div class="frow" data-frow>
+const LINE_ITEMS=[];
+function lineMock(it,uid){return `<span class="fmock">${["front","back"].filter(sd=>sd==="front"||(it.design.els||[]).some(e=>e.side==="back")||(it.design.team&&it.design.team.on)).map(sd=>`<span class="mini">${designMock(it,sd,uid+sd)}</span>`).join("")}</span>`}
+function freeRowHTML(l,pre){const it=l.li!=null?LINE_ITEMS[l.li]:null;return `<div class="frow${it?" hasitem":""}" data-frow${it?` data-li="${l.li}"`:""}>
+  ${it?`<div class="fitem">${lineMock(it,"fl"+l.li)}<small class="dim">${esc((it.parts||[]).join(" · "))}</small></div>`:""}
   <input type="text" data-f="desc" placeholder="Concepto (p. ej. Camiseta técnica con logo delante)" value="${esc(l.desc||l.name||"")}" aria-label="Concepto">
   <input type="text" data-f="sizes" placeholder="Tallas (opcional)" value="${esc(l.sizes||"")}" aria-label="Tallas">
   <input type="number" min="0" step="1" data-f="qty" value="${l.qty||1}" aria-label="Unidades">
@@ -2750,7 +2757,7 @@ function freeRowHTML(l,pre){return `<div class="frow" data-frow>
   <input type="number" min="0" step="0.01" data-f="cost" value="${l.cost!=null?(+l.cost).toFixed(2):""}" placeholder="coste/ud" title="Tu coste por unidad sin IVA (no lo ve el cliente)" aria-label="Coste por unidad">
   <span class="mono" data-f="tot">${eur((+l.qty||0)*(+l.unit||0))}</span>
   <button class="x" type="button" data-frm aria-label="Quitar línea">×</button></div>`}
-function readFree(root){return [...root.querySelectorAll("[data-frow]")].map(r=>({desc:r.querySelector('[data-f=desc]').value.trim(),sizes:r.querySelector('[data-f=sizes]').value.trim(),qty:+r.querySelector('[data-f=qty]').value||0,unit:+r.querySelector('[data-f=unit]').value||0,cost:r.querySelector('[data-f=cost]').value===""?null:+r.querySelector('[data-f=cost]').value})).filter(l=>l.desc&&l.qty>0)}
+function readFree(root){return [...root.querySelectorAll("[data-frow]")].map(r=>({desc:r.querySelector('[data-f=desc]').value.trim(),sizes:r.querySelector('[data-f=sizes]').value.trim(),qty:+r.querySelector('[data-f=qty]').value||0,unit:+r.querySelector('[data-f=unit]').value||0,cost:r.querySelector('[data-f=cost]').value===""?null:+r.querySelector('[data-f=cost]').value,li:r.dataset.li!=null?+r.dataset.li:null,item:r.dataset.li!=null?LINE_ITEMS[+r.dataset.li]:null})).filter(l=>l.desc&&l.qty>0)}
 function custFields(c,pre){return `<div class="formgrid">
   <label class="field"><span>Nombre y apellidos</span><input type="text" id="${pre}Name" value="${esc(c.name||"")}"></label>
   <label class="field"><span>Email</span><input type="email" id="${pre}Email" value="${esc(c.email||"")}"></label>
@@ -2837,7 +2844,7 @@ document.addEventListener("submit",async e=>{
 let MO={client:"",q:{}};
 function clientOptions(sel,withNew){const cl=allClients();return `<option value="">${withNew?"— Cliente nuevo —":"— Sin área de cliente —"}</option>${Object.entries(cl).sort((a,b)=>a[1].name.localeCompare(b[1].name)).map(([k,c])=>`<option value="${esc(k)}"${sel===k?" selected":""}>${esc(c.name)} · ${esc(k)}</option>`).join("")}`}
 function clientCust(k){const c=allClients()[k];if(!c)return {};const u=(c.users||[])[0]||{},b=c.billing||{};return {name:u.name||"",email:u.email||"",tel:c.contact||"",company:b.name||c.name,cif:b.cif||""}}
-function newOrderSheet(){
+function newOrderSheet(draft){
   const c=MO.client?allClients()[MO.client]:null, cust=MO.client?clientCust(MO.client):{};
   $("#sheetRoot").innerHTML=`<div class="sheet" role="dialog" aria-label="Nuevo pedido"><div class="wrap" style="max-width:980px">
     <button class="btn" type="button" data-back>← Pedidos</button>
@@ -2851,7 +2858,7 @@ function newOrderSheet(){
             ${sizeGridHTML(pr,s=>`<label>${esc(s)}<input type="number" min="0" max="999" inputmode="numeric" data-mosz="${cp.id}|${esc(s)}" value="${qd[s]||""}" placeholder="0">${plusTag(s)}</label>`)}</div>`}).join("")
           :`<div class="note">Este cliente aún no tiene productos en su área. Añade líneas libres o créale productos desde su ficha.</div>`}`:""}
       <div class="label">Otras líneas (concepto, unidades y precio por unidad con IVA)</div>
-      <div id="moFree"></div><button class="btn" type="button" data-fadd="moFree" style="width:max-content">+ Añadir línea</button>
+      <div id="moFree"></div><div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" type="button" data-fadd="moFree">+ Añadir línea</button><button class="btn dark" type="button" data-pick="mo">+ Prenda del catálogo personalizada</button></div>
       <div class="label">Datos del cliente</div>${custFields(cust,"mo")}
       <div class="label">Entrega</div>${shipFields({},"mo")}
       <div class="formgrid"><label class="field"><span>Fecha de compromiso (opcional)</span><input type="date" id="moDue"></label>
@@ -2862,7 +2869,9 @@ function newOrderSheet(){
         <button class="btn primary big" type="submit">Crear pedido</button></div>
       <div class="err" id="moErr" style="color:var(--danger);font-size:14px"></div>
     </form></div></div>`;
-  if(!c)$("#moFree").insertAdjacentHTML("beforeend",freeRowHTML({qty:1}));
+  if(draft){const set=(id,v)=>{const n=document.getElementById(id);if(n&&v!=null&&n.type!=="checkbox")n.value=v;if(n&&n.type==="checkbox")n.checked=!!v};
+    Object.entries(draft.f||{}).forEach(([k,v])=>set(k,v));(draft.lines||[]).forEach(l=>$("#moFree").insertAdjacentHTML("beforeend",freeRowHTML(l)))}
+  else if(!c)$("#moFree").insertAdjacentHTML("beforeend",freeRowHTML({qty:1}));
   moRecalc();
 }
 document.addEventListener("change",e=>{if(e.target.id==="moClient"){MO={client:e.target.value,q:{}};newOrderSheet()}});
@@ -2880,7 +2889,8 @@ document.addEventListener("submit",async e=>{
   btn.disabled=true;btn.textContent="Creando…";
   try{const keys=[...new Set(items.flatMap(i=>i.design.els.flatMap(x=>[x.file,x.mask,x.orig]).filter(Boolean)))];
     for(const k of keys){try{await uploadFile(k,PH[k])}catch(x){if(x.status!==409)throw x}}
-    const r=await api("/api/admin/order-create",{client:MO.client||null,items,free,customer:{...cust,ship,addr:$("#moAddr").value.trim()},pay:$("#moPay").value,paid:$("#moPaid").checked,due:$("#moDue").value,notes:$("#moNotes").value});
+    await uploadLineFiles(free);
+    const r=await api("/api/admin/order-create",{client:MO.client||null,items,free:free.map(({li,...l})=>l),customer:{...cust,ship,addr:$("#moAddr").value.trim()},pay:$("#moPay").value,paid:$("#moPaid").checked,due:$("#moDue").value,notes:$("#moNotes").value});
     location.hash="admin";location.reload()}
   catch(x){btn.disabled=false;btn.textContent="Crear pedido";$("#moErr").textContent=x.message}
 });
@@ -2888,7 +2898,7 @@ document.addEventListener("submit",async e=>{
 /* ===== Gestión: presupuesto nuevo (el cliente lo ve y lo acepta en su área) ===== */
 let NQ={client:""};
 function nqRecalc(){const n=$("#nqTotal");if(!n)return;n.textContent=eur(r2(readFree($("#nqLines")).reduce((a,l)=>a+l.qty*l.unit,0)))}
-function newQuoteSheet(){
+function newQuoteSheet(draft){
   const c=NQ.client?allClients()[NQ.client]:null;
   const in10=new Date(Date.now()+15*864e5).toISOString().slice(0,10);
   $("#sheetRoot").innerHTML=`<div class="sheet" role="dialog" aria-label="Nuevo presupuesto"><div class="wrap" style="max-width:900px">
@@ -2905,7 +2915,7 @@ function newQuoteSheet(){
           <label class="field"><span>Teléfono</span><input type="tel" id="nqTel"></label>
           <label class="field"><span>Tipo</span><input type="text" id="nqType" placeholder="Club, empresa, evento…"></label></div>`}
       <div class="label">Líneas (concepto, tallas opcional, unidades y precio por unidad con IVA)</div>
-      <div id="nqLines"></div><button class="btn" type="button" data-fadd="nqLines" style="width:max-content">+ Añadir línea</button>
+      <div id="nqLines"></div><div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" type="button" data-fadd="nqLines">+ Añadir línea</button><button class="btn dark" type="button" data-pick="nq">+ Prenda del catálogo personalizada</button></div>
       <div class="formgrid"><label class="field"><span>Válido hasta</span><input type="date" id="nqValid" value="${in10}"></label>
         <label class="field"><span>Plazo de entrega</span><input type="text" id="nqDays" placeholder="p. ej. 5 días laborables desde la aceptación"></label></div>
       <label class="field"><span>Notas para el cliente</span><textarea id="nqNotes" rows="2"></textarea></label>
@@ -2913,7 +2923,9 @@ function newQuoteSheet(){
         <button class="btn primary big" type="submit">Crear y enviar al área del cliente</button></div>
       <div class="err" id="nqErr" style="color:var(--danger);font-size:14px"></div>
     </form><div id="nqDone"></div></div></div>`;
-  $("#nqLines").insertAdjacentHTML("beforeend",freeRowHTML({qty:1}));
+  if(draft){const set=(id,v)=>{const n=document.getElementById(id);if(n&&v!=null)n.value=v};
+    Object.entries(draft.f||{}).forEach(([k,v])=>set(k,v));(draft.lines||[]).forEach(l=>$("#nqLines").insertAdjacentHTML("beforeend",freeRowHTML(l)));nqRecalc()}
+  else $("#nqLines").insertAdjacentHTML("beforeend",freeRowHTML({qty:1}));
 }
 document.addEventListener("change",e=>{if(e.target.id==="nqClient"){NQ={client:e.target.value};newQuoteSheet()}});
 document.addEventListener("click",e=>{const b=e.target.closest("[data-nqcp]");if(!b)return;const cp=allClients()[NQ.client].products.find(x=>x.id===b.dataset.nqcp);
@@ -2922,11 +2934,11 @@ document.addEventListener("click",e=>{const b=e.target.closest("[data-nqcp]");if
 document.addEventListener("submit",async e=>{
   if(e.target.id!=="nqForm")return;e.preventDefault();const btn=e.target.querySelector("button[type=submit]");$("#nqErr").textContent="";
   const lines=readFree($("#nqLines"));if(!lines.length)return $("#nqErr").textContent="Añade al menos una línea con concepto, unidades y precio.";
-  const body={client:NQ.client||null,lines,validUntil:$("#nqValid").value,days:$("#nqDays").value,notes:$("#nqNotes").value};
+  const body={client:NQ.client||null,lines:lines.map(({li,...l})=>l),validUntil:$("#nqValid").value,days:$("#nqDays").value,notes:$("#nqNotes").value};
   if(!NQ.client){body.newClient={company:$("#nqCo").value,name:$("#nqName").value,email:$("#nqEmail").value,tel:$("#nqTel").value,type:$("#nqType").value};
     if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(body.newClient.email.trim()))return $("#nqErr").textContent="Escribe el email del cliente nuevo: será su acceso.";}
   btn.disabled=true;btn.textContent="Creando…";
-  try{const r=await api("/api/admin/quote-create",body);
+  try{await uploadLineFiles(lines);const r=await api("/api/admin/quote-create",body);
     const site=location.origin, txt=`Hola${body.newClient&&body.newClient.name?" "+body.newClient.name.split(" ")[0]:""}, te hemos preparado el presupuesto ${r.ref}. Puedes verlo, aceptarlo y pagarlo en tu área de cliente: ${site}/#area${r.pass?` · Usuario: ${r.email} · Contraseña provisional: ${r.pass} (cámbiala en «Mi perfil»)`:""}`;
     e.target.remove();$("#nqDone").innerHTML=`<div class="step"><div class="note ok">✓ Presupuesto ${esc(r.ref)} creado${r.pass?" y área de cliente dada de alta":""}. Ya lo ve en su área.</div>
       <div class="label">Mensaje para enviarle (email o WhatsApp)</div><div class="note" style="user-select:all">${esc(txt)}</div>
@@ -2986,7 +2998,7 @@ const CST=()=>({...COST_DEF,...(RATES.costs||{})});
 function itemCost(i){
   const C=CST(),dtf=C.dtfEur/(C.dtfW*C.dtfH),vin=C.vinEur/(C.vinW*C.vinH),k=1+C.waste/100;
   const out={garment:0,dtf:0,vinyl:0,unknown:[]};const qty=+i.qty||0;
-  if(i.free){if(i.cost!=null)out.garment=+i.cost*qty;else out.unknown.push(`${i.name}: línea libre sin coste`);return out}
+  if(i.free&&(i.cost!=null||!i.design)){if(i.cost!=null)out.garment=+i.cost*qty;else out.unknown.push(`${i.name}: línea libre sin coste`);return out}
   const p=prodById(i.pid);
   if(p&&p.cost)out.garment=p.cost*qty;else out.unknown.push(`${i.name}: prenda sin precio de coste`);
   const d=i.design||{};
@@ -3049,6 +3061,28 @@ function admProfit(orders){
 document.addEventListener("click",e=>{const b=e.target.closest("[data-pf]");if(!b)return;PF_PERIOD=b.dataset.pf;admProfit(loadOrders())});
 document.addEventListener("change",e=>{const t=e.target.closest("[data-cost]");if(!t)return;RATES.costs={...(RATES.costs||{}),[t.dataset.cost]:Math.max(0,parseFloat(t.value)||0)};
   try{STORE.setItem("ep_rates",JSON.stringify(RATES))}catch(x){}admProfit(loadOrders())});
+
+/* ===== Diseñar una prenda del catálogo para un presupuesto o un pedido manual ===== */
+let PICK=null;
+async function uploadLineFiles(lines){const keys=[...new Set(lines.filter(l=>l.item&&l.item.design).flatMap(l=>l.item.design.els.flatMap(x=>[x.file,x.mask,x.orig]).filter(Boolean)))];
+  for(const k of keys){if(!PH[k])continue;try{await uploadFile(k,PH[k])}catch(x){if(x.status!==409)throw x}}}
+const FORM_IDS={nq:["nqCo","nqName","nqEmail","nqTel","nqType","nqValid","nqDays","nqNotes"],mo:["moName","moEmail","moTel","moCo","moCif","moAddr","moDue","moPay","moPaid","moNotes"]};
+document.addEventListener("click",e=>{const b=e.target.closest("[data-pick]");if(!b)return;const t=b.dataset.pick;
+  const f={};FORM_IDS[t].forEach(id=>{const n=document.getElementById(id);if(n)f[id]=n.type==="checkbox"?n.checked:n.value});
+  const lines=readFree($(t==="nq"?"#nqLines":"#moFree")).map(({item,...l})=>l);
+  PICK={target:t,draft:{f,lines},client:t==="nq"?NQ.client:MO.client,q:t==="mo"?JSON.parse(JSON.stringify(MO.q)):null};
+  $("#sheetRoot").innerHTML="";location.hash="catalogo"});
+function pickBanner(){if(!PICK)return "";return `<div class="pickbar"><span>Diseñando una prenda para ${PICK.target==="nq"?"el presupuesto":"el pedido"}. Elige color, logo, textos y tallas.</span>
+  <button class="btn primary" type="button" id="pickAdd">Añadir al ${PICK.target==="nq"?"presupuesto":"pedido"}</button><button class="btn ghost" type="button" id="pickCancel">Volver sin añadir</button></div>`}
+function pickReturn(){const P=PICK;PICK=null;location.hash="admin";
+  setTimeout(()=>{if(P.target==="nq"){NQ={client:P.client||""};newQuoteSheet(P.draft)}else{MO={client:P.client||"",q:P.q||{}};newOrderSheet(P.draft)}},60)}
+document.addEventListener("click",e=>{
+  if(e.target.closest("#pickCancel")){pickReturn();return}
+  if(!e.target.closest("#pickAdd"))return;
+  const n=cart.length;addToCart();if(cart.length===n)return; // faltan tallas u otro dato: el ticket ya lo indica
+  const it=cart.pop();saveCart();updateCount();$("#drawerRoot").innerHTML="";
+  LINE_ITEMS.push(it);PICK.draft.lines.push({desc:`${it.name} · ${colorLabel(it.color)}`,sizes:it.sizes,qty:it.qty,unit:r2(it.total/it.qty),li:LINE_ITEMS.length-1});
+  pickReturn()});
 function newClientSheet(){
   $("#sheetRoot").innerHTML=`<div class="sheet" role="dialog" aria-label="Nuevo cliente"><div class="wrap" style="max-width:640px">
     <button class="btn" type="button" data-back>← Clientes</button>

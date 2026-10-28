@@ -20,7 +20,12 @@ export async function POST(req) {
   if (!key) return fail("Elige un cliente o crea uno nuevo.");
   const fl = freeLines(d.lines);
   const lineCosts = fl.map((l) => l.cost);
-  const lines = fl.map(({ id, free, cost, ...l }) => l);
+  const lines = fl.map(({ id, free, cost, ...l }) => {
+    const { pid, design } = l;
+    if (!design) return { name: l.name, qty: l.qty, unit: l.unit, total: l.total, sizes: l.sizes, parts: l.parts };
+    const { name, qty, unit, total, sizes, parts, ...item } = l;
+    return { name, qty, unit, total, sizes, item: { ...item, name: name, sizes, parts } };
+  });
   if (!lines.length) return fail("Añade al menos una línea con concepto, unidades y precio.");
   const total = r2(lines.reduce((a, l) => a + l.total, 0));
   const c = kv.ep_clients[key];

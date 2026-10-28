@@ -42,6 +42,11 @@ export async function GET() {
     boot.myOrders = o.rows.map((r) => { const x = { ...orderForShop(r), ...(r.state || {}), invoice: r.invoice || null }; x.items = noCost(x.items); return x; });
     const mq = await q("select data from quotes where data->>'client'=$1 and data->>'status' in ('enviado','aceptado') and data ? 'answer' order by created_at desc limit 200", [session.client]);
     boot.myQuotes = mq.rows.map((r) => { const { lineCosts, ...x } = r.data; return x; }).filter((x) => x.answer && x.answer.total);
+    const keys = new Set();
+    const addKeys = (it) => ((it && it.design && it.design.els) || []).forEach((e) => [e.file, e.mask, e.orig].forEach((k) => k && keys.add(k)));
+    boot.myQuotes.forEach((x) => (x.lines || []).forEach((l) => addKeys(l.item)));
+    boot.myOrders.forEach((x) => (x.items || []).forEach(addKeys));
+    if (keys.size) (await q("select key,url from files where key = any($1)", [[...keys]])).rows.forEach((f) => { boot.files[f.key] = f.url; });
   }
   boot.blob = blobEnabled();
   const cfg = redsysConfig();
