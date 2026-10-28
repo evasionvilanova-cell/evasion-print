@@ -423,7 +423,8 @@ form.step>.field,#addrBox>.field,#addrBox>.row{flex:none}
 .atabs button{background:none;border:0;border-bottom:2px solid transparent;padding:10px 14px;font:600 15px var(--f-body);color:var(--muted);cursor:pointer;white-space:nowrap}
 .atabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--ink)}.atabs small{font:12px var(--f-mono);opacity:.7;margin-left:4px}
 .olist{display:flex;flex-direction:column;gap:10px;max-width:900px}.ocard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px}
-.pgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:14px;align-items:start}
+.pgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start}.pcol{display:flex;flex-direction:column;gap:14px}.pcol>*{margin:0}
+@media (max-width:980px){.pgrid{grid-template-columns:1fr}}
 .pgrid form.step{display:flex;flex-direction:column;gap:10px}
 .frow{display:grid;grid-template-columns:minmax(0,2.2fr) minmax(0,1.2fr) 70px 90px 84px 28px;gap:6px;align-items:center}
 .frow>span{font-size:14px;min-width:0}.oelines{display:flex;flex-direction:column;gap:6px}
@@ -2116,12 +2117,14 @@ function ordersPane(c,code,os){
 function profilePane(c){
   if(!IS_CLIENT)return `<div class="note">Estás viendo el área como Gestión. El perfil lo edita el propio cliente.</div>`;
   const b=billingOf(c,null);
-  return `<div class="pgrid">
+  return `<div class="pgrid"><div class="pcol">
     <form class="step" id="pfLogo" novalidate><div class="step-h"><h3>Imagen del perfil</h3></div>
       <div class="row" style="gap:14px"><span class="crest" style="width:84px;height:84px;border-radius:50%;border:1px solid var(--line);background:var(--surface) ${c.crest?`url('${c.crest}')`:""} center/70% no-repeat;flex:none"></span>
       <div style="display:flex;flex-direction:column;gap:6px"><label class="btn" style="cursor:pointer">${c.crest?"Cambiar imagen":"Subir escudo o logo"}<input type="file" id="pfCrest" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden></label>
       ${c.crest?`<button class="btn ghost" type="button" id="pfCrestDel">Quitar</button>`:""}<span class="dim" style="font-size:13px">PNG, JPG, WEBP o SVG</span></div></div>
       <div class="err" id="pfLogoErr" style="color:var(--danger);font-size:14px"></div></form>
+    <div class="step"><div class="step-h"><h3>Tu acceso</h3></div><div><b>${esc(SESSION.name)}</b><br><span class="dim">${esc(SESSION.email)}</span></div>
+      <div class="dim" style="font-size:13px">Usuarios con acceso: ${(c.users||[]).map(u=>esc(u.name)).join(", ")||"—"}. Para añadir a alguien más, escríbenos.</div></div></div>
     <form class="step" id="pfBill" novalidate><div class="step-h"><h3>Datos de facturación</h3></div>
       ${billingFields(b,"pb")}<div class="err" id="pbErr" style="color:var(--danger);font-size:14px"></div>
       <button class="btn primary" type="submit" style="width:max-content">Guardar datos</button></form>
@@ -2131,8 +2134,6 @@ function profilePane(c){
       <label class="field"><span>Repite la nueva</span><input type="password" id="ppNew2" autocomplete="new-password"></label>
       <div class="err" id="ppErr" style="color:var(--danger);font-size:14px"></div>
       <button class="btn primary" type="submit" style="width:max-content">Cambiar contraseña</button></form>
-    <div class="step"><div class="step-h"><h3>Tu acceso</h3></div><div><b>${esc(SESSION.name)}</b><br><span class="dim">${esc(SESSION.email)}</span></div>
-      <div class="dim" style="font-size:13px">Usuarios con acceso: ${(c.users||[]).map(u=>esc(u.name)).join(", ")||"—"}. Para añadir a alguien más, escríbenos.</div></div>
   </div>`;
 }
 const reArea=()=>CUR&&renderArea("cliente-"+CUR.code.toLowerCase());
@@ -2690,7 +2691,9 @@ function clientSheet(key){
     <div class="row" style="justify-content:space-between"><button class="btn" type="button" data-back>← Clientes</button>${c.example?`<span class="tag-ex">datos de ejemplo</span>`:""}</div>
     <div class="adm-h" style="margin-top:18px"><div class="row" style="gap:16px"><span class="crest" style="width:64px;height:64px;border-radius:50%;border:1px solid var(--line);background:var(--surface) url('${c.crest||""}') center/70% no-repeat;display:block"></span>
       <div><span class="eyebrow">${esc(c.type||"Cliente")}</span><h1 style="font-family:'Instrument Serif',Georgia,serif;font-weight:400;text-transform:none;font-size:44px">${esc(c.name)}</h1></div></div>
-      <div class="row"><button class="btn" type="button" data-asclient="${key}">Ver su área</button><button class="btn primary" type="button" data-design="${key}">+ Diseñar producto</button></div></div>
+      <div class="row" style="flex-wrap:wrap;gap:6px"><button class="btn" type="button" data-asclient="${key}">Ver su área</button><button class="btn" type="button" data-cledit="${key}">Editar cliente</button><button class="btn primary" type="button" data-design="${key}">+ Diseñar producto</button>
+        <button class="btn ghost" type="button" data-cldel="${key}" style="color:var(--danger)">${DEL_CLIENT===key?"¿Seguro? Pulsa otra vez":"Eliminar cliente"}</button></div></div>
+      ${DEL_CLIENT===key?`<div class="note warn" style="margin-bottom:12px">Se borra su área, sus productos guardados y sus accesos. Sus pedidos y facturas se mantienen en Gestión.${os.length?` Tiene ${os.length} pedido(s).`:""}</div>`:""}
     <div class="co">
       <div style="display:flex;flex-direction:column;gap:12px">
         <div class="label">Productos de su área · precio acordado</div>
@@ -2706,7 +2709,9 @@ function clientSheet(key){
         <label class="toggle" style="font-weight:500"><input type="checkbox" data-cltransfer="${key}"${c.transfer?" checked":""}> Puede pagar por transferencia bancaria</label>
         <span class="dim" style="font-size:13px">Si está marcado, le sale «Transferencia» al pagar cuando entra en su área.</span>
         <div class="step-h" style="margin-top:12px"><h3>Usuarios con acceso</h3></div>
-        ${(c.users||[]).map(u=>`<div><b>${esc(u.name)}</b>${u.role?` · ${esc(u.role)}`:""}<br><span class="cpy">${esc(u.email)}</span></div>`).join("")||`<span class="dim">Sin usuarios.</span>`}
+        ${(c.users||[]).map(u=>`<div class="row" style="justify-content:space-between;gap:8px;align-items:flex-start"><span><b>${esc(u.name)}</b>${u.role?` · ${esc(u.role)}`:""}<br><span class="cpy">${esc(u.email)}</span>
+          ${NEWPASS[u.email]?`<br><span class="note ok" style="display:inline-block;margin-top:4px;user-select:all">Nueva contraseña: <b class="mono">${esc(NEWPASS[u.email])}</b></span>`:""}</span>
+          <span class="row" style="gap:4px;flex:none"><button class="linkbtn" type="button" data-ureset="${key}|${esc(u.email)}">Nueva contraseña</button><button class="x" type="button" data-urm="${key}|${esc(u.email)}" aria-label="Quitar acceso a ${esc(u.name)}">×</button></span></div>`).join("")||`<span class="dim">Sin usuarios.</span>`}
         <form id="addUser" data-key="${key}" style="display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:12px" novalidate>
           <div class="label">Añadir usuario</div>
           <input type="text" id="auName" placeholder="Nombre" aria-label="Nombre">
@@ -2917,6 +2922,49 @@ document.addEventListener("submit",async e=>{
   catch(x){btn.disabled=false;btn.textContent="Crear y enviar al área del cliente";$("#nqErr").textContent=x.message}
 });
 document.addEventListener("click",e=>{if(e.target.closest("[data-reloadadm]")){location.hash="admin";location.reload()}});
+
+/* ===== Gestión: editar y eliminar clientes ===== */
+let DEL_CLIENT=null; const NEWPASS={};
+function genPass(){const w=["sol","mar","pista","meta","gol","salto","ruta","faro","vela","trail"],r=n=>crypto.getRandomValues(new Uint32Array(1))[0]%n;return w[r(10)]+"-"+w[r(10)]+"-"+(100+r(900))}
+function ensureExtra(key){const ex=loadExtra();if(!ex[key]){const c=allClients()[key];ex[key]={name:c.name,type:c.type,crest:c.crest||"",contact:c.contact||"",users:[],products:[]}}return ex}
+// cambia un usuario esté en la ficha del cliente o en los añadidos desde Gestión
+function editUser(key,email,fn){const ex=ensureExtra(key),adm=loadAdm();let hit=false;
+  const apply=list=>(list||[]).map(u=>{if(u.email.toLowerCase()!==email.toLowerCase())return u;hit=true;return fn(u)}).filter(Boolean);
+  ex[key].users=apply(ex[key].users);if(adm.users[key])adm.users[key]=apply(adm.users[key]);saveExtra(ex);saveAdm(adm);return hit}
+function editClientSheet(key){
+  const c=allClients()[key];if(!c)return;const b=c.billing||{};
+  $("#sheetRoot").innerHTML=`<div class="sheet" role="dialog" aria-label="Editar ${esc(c.name)}"><div class="wrap" style="max-width:720px">
+    <button class="btn" type="button" data-clback="${key}">← Volver a la ficha</button>
+    <h1 style="font-family:'Instrument Serif',Georgia,serif;font-weight:400;text-transform:none;font-size:44px;margin:16px 0">Editar ${esc(c.name)}</h1>
+    <form id="ceForm" data-key="${key}" class="step" novalidate style="display:flex;flex-direction:column;gap:12px">
+      <div class="formgrid"><label class="field"><span>Club o empresa</span><input type="text" id="ceName" value="${esc(c.name)}"></label>
+        <label class="field"><span>Tipo</span><input type="text" id="ceType" value="${esc(c.type||"")}"></label>
+        <label class="field"><span>Teléfono de contacto</span><input type="tel" id="ceTel" value="${esc(c.contact||"")}"></label></div>
+      <div class="row" style="gap:12px"><span class="crest" style="width:64px;height:64px;border-radius:50%;border:1px solid var(--line);background:var(--surface) ${c.crest?`url('${c.crest}')`:""} center/70% no-repeat;flex:none"></span>
+        <label class="btn" style="cursor:pointer">${c.crest?"Cambiar escudo o logo":"Subir escudo o logo"}<input type="file" id="ceCrest" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden></label>
+        ${c.crest?`<button class="btn ghost" type="button" id="ceCrestDel">Quitar</button>`:""}</div>
+      <label class="toggle" style="font-weight:500"><input type="checkbox" id="ceTransfer"${c.transfer?" checked":""}> Puede pagar por transferencia bancaria</label>
+      <div class="label">Datos de facturación</div>${billingFields({name:b.name||"",cif:b.cif||"",addr:b.addr||"",zip:b.zip||"",city:b.city||"",province:b.province||""},"ce")}
+      <div class="err" id="ceErr" style="color:var(--danger);font-size:14px"></div>
+      <button class="btn primary big" type="submit" style="width:max-content">Guardar cambios</button></form></div></div>`;
+}
+document.addEventListener("click",e=>{
+  const ed=e.target.closest("[data-cledit]");if(ed){editClientSheet(ed.dataset.cledit);return}
+  const bk=e.target.closest("[data-clback]");if(bk){clientSheet(bk.dataset.clback);return}
+  if(e.target.closest("#ceCrestDel")){const k=$("#ceForm").dataset.key,ex=ensureExtra(k);ex[k].crest="";saveExtra(ex);editClientSheet(k);return}
+  const dl=e.target.closest("[data-cldel]");if(dl){const k=dl.dataset.cldel;if(DEL_CLIENT!==k){DEL_CLIENT=k;clientSheet(k);return}
+    DEL_CLIENT=null;const ex=loadExtra(),adm=loadAdm();const c=allClients()[k];
+    (c.products||[]).forEach(p=>{delete adm.prices[p.id]});delete adm.users[k];delete ex[k];saveAdm(adm);saveExtra(ex);
+    $("#sheetRoot").innerHTML="";renderAdmin("admin-clientes");return}
+  const rs=e.target.closest("[data-ureset]");if(rs){const [k,em]=rs.dataset.ureset.split("|"),pw=genPass();editUser(k,em,u=>({...u,pass:pw}));NEWPASS[em]=pw;clientSheet(k);return}
+  const rm=e.target.closest("[data-urm]");if(rm){const [k,em]=rm.dataset.urm.split("|");editUser(k,em,()=>null);clientSheet(k);return}
+});
+document.addEventListener("change",e=>{if(e.target.id!=="ceCrest"||!e.target.files[0])return;const k=$("#ceForm").dataset.key;
+  shrinkImage(e.target.files[0],400).then(d=>{const ex=ensureExtra(k);ex[k].crest=d;saveExtra(ex);editClientSheet(k)})});
+document.addEventListener("submit",e=>{if(e.target.id!=="ceForm")return;e.preventDefault();const k=e.target.dataset.key,name=$("#ceName").value.trim();
+  if(!name)return $("#ceErr").textContent="Escribe el nombre del cliente.";
+  const ex=ensureExtra(k);Object.assign(ex[k],{name,type:$("#ceType").value.trim(),contact:$("#ceTel").value.trim(),transfer:$("#ceTransfer").checked,billing:{...readBilling("ce"),cif:$("#ceCif").value.trim().toUpperCase()}});
+  saveExtra(ex);clientSheet(k)});
 function newClientSheet(){
   $("#sheetRoot").innerHTML=`<div class="sheet" role="dialog" aria-label="Nuevo cliente"><div class="wrap" style="max-width:640px">
     <button class="btn" type="button" data-back>← Clientes</button>
