@@ -416,6 +416,8 @@ form.step>.field{flex:none}
 .fdl dt{color:var(--muted)}.fdl dd{margin:0}
 .fobs{margin:0;padding-left:18px;font-size:14px;display:grid;gap:3px}
 .fmeas{display:flex;flex-wrap:wrap;gap:6px}.fmeas span{border:1px solid var(--line);border-radius:6px;padding:4px 8px;font:12px var(--f-mono);display:flex;gap:6px}
+.kindtag{display:inline-block;margin-top:3px;font:600 10px/1 var(--f-body);text-transform:uppercase;letter-spacing:.06em;padding:3px 6px;border-radius:4px;background:#e4f23a;color:#15171c}
+.kindtag.k-contacto{background:#dfe6ff}
 .supviews{display:flex;gap:8px;flex-wrap:wrap}.supviews figure{margin:0;width:96px;font-size:11px;text-align:center}.supviews img{width:96px;height:106px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:6px}
 .fwash{display:flex;gap:8px;flex-wrap:wrap}.fwash img{width:30px;height:30px;object-fit:contain}
 
@@ -1255,8 +1257,65 @@ const INFO_PAGES={
       <div class="infocard"><b>Email</b><span class="cpy">${SHOP.email}</span><button class="linkbtn" type="button" data-copy="${SHOP.email}">Copiar email</button></div>
     </div>
     <h2>¿Un pedido fuera de catálogo?</h2>
-    <p>Gorras, mochilas, cantidades grandes o una fecha muy justa: pídenos <a href="#presupuesto">presupuesto personalizado</a> y te respondemos en 24 h laborables.</p>`)
+    <p>Gorras, mochilas, cantidades grandes o una fecha muy justa: pídenos <a href="#presupuesto">presupuesto personalizado</a> y te respondemos en 24 h laborables.</p>
+    ${contactFormHTML()}
+    <h2>¿Club o empresa que repite pedido?</h2>
+    <p>Te creamos un área de cliente con vuestras prendas ya diseñadas. <a href="#area">Solicítala desde el área de cliente</a>.</p>`)
 };
+
+/* ===== Solicitudes desde la web: alta de área de cliente y contacto =====
+   Llegan a Gestión → Presupuestos (con su etiqueta) y por email a la tienda. */
+const KIND_L={alta:"Alta de área",contacto:"Contacto",presupuesto:"Presupuesto"};
+const newRef=()=>"PR-"+String(new Date().getFullYear()).slice(2)+"-"+Array.from(crypto.getRandomValues(new Uint8Array(3)),b=>b.toString(16).padStart(2,"0")).join("").toUpperCase();
+function altaFormHTML(){return `<form id="altaForm" class="step" novalidate style="gap:12px;margin-top:12px;text-align:left">
+  <div class="step-h"><h3>Solicitar área de cliente</h3></div>
+  <p class="dim" style="margin:0">Te preparamos un área con vuestras prendas, logos y colores para que repetir pedido sea elegir tallas y pagar. Gratis.</p>
+  <label class="field"><span>Club, empresa o entidad <b>*</b></span><input type="text" id="alCo" autocomplete="organization"></label>
+  <label class="field"><span>Tipo</span><select id="alType"><option>Club deportivo</option><option>Empresa</option><option>Colegio o AMPA</option><option>Evento o carrera</option><option>Otro</option></select></label>
+  <label class="field"><span>Persona de contacto <b>*</b></span><input type="text" id="alName" autocomplete="name"></label>
+  <label class="field"><span>Email <b>*</b></span><input type="email" id="alEmail" autocomplete="email"></label>
+  <label class="field"><span>Teléfono</span><input type="tel" id="alTel" autocomplete="tel"></label>
+  <label class="field"><span>¿Qué prendas soléis pedir?</span><textarea id="alMsg" rows="3" placeholder="Camisetas de entreno, sudaderas del club, polos de trabajo…"></textarea></label>
+  <label class="field"><span>Vuestro logo (opcional)</span><input type="file" id="alLogo" accept="image/*,application/pdf,.ai,.eps,.svg"></label>
+  <label class="toggle" style="font-weight:500;font-size:13px"><input type="checkbox" id="alOk"> Acepto la <a href="#privacidad">política de privacidad</a></label>
+  <div class="err" id="alErr" style="color:var(--danger);font-size:14px"></div>
+  <button class="btn dark big" type="submit" style="justify-content:center">Enviar solicitud</button></form>`}
+function contactFormHTML(){return `<h2>Escríbenos</h2><form id="contactForm" class="step" novalidate style="gap:12px;max-width:620px">
+  <div class="formgrid"><label class="field"><span>Nombre <b>*</b></span><input type="text" id="ctName" autocomplete="name"></label>
+  <label class="field"><span>Email <b>*</b></span><input type="email" id="ctEmail" autocomplete="email"></label>
+  <label class="field"><span>Teléfono</span><input type="tel" id="ctTel" autocomplete="tel"></label>
+  <label class="field"><span>Club o empresa</span><input type="text" id="ctCo" autocomplete="organization"></label></div>
+  <label class="field"><span>Mensaje <b>*</b></span><textarea id="ctMsg" rows="5"></textarea></label>
+  <label class="toggle" style="font-weight:500;font-size:13px"><input type="checkbox" id="ctOk"> Acepto la <a href="#privacidad">política de privacidad</a></label>
+  <div class="err" id="ctErr" style="color:var(--danger);font-size:14px"></div>
+  <button class="btn dark big" type="submit" style="width:max-content">Enviar mensaje</button></form>`}
+async function sendRequest(kind,data,file,btn,errBox){
+  const ref=newRef();btn.disabled=true;const label=btn.textContent;btn.textContent="Enviando…";
+  try{const files=[];
+    if(file){const key="q_"+ref+"_0";try{await uploadFile(key,file);files.push({name:file.name,key,type:file.type,size:file.size})}catch(x){files.push({name:file.name,key:null,type:file.type,size:file.size})}}
+    await api("/api/quotes",{ref,kind,...data,files});return ref}
+  catch(x){btn.disabled=false;btn.textContent=label;errBox.textContent=x.message;return null}}
+const okEmail=v=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v);
+document.addEventListener("click",e=>{const ac=e.target.closest("[data-altaclient]");if(!ac)return;
+  const q=loadQuotes().find(x=>x.ref===ac.dataset.altaclient);if(!q)return;newClientSheet();
+  const set=(id,val)=>{const n=document.getElementById(id);if(n&&val)n.value=val};
+  set("ncName",q.company);set("ncEmail",q.email);set("ncUser",q.name);set("ncType",(q.products||"").split("· ")[1]||"");});
+document.addEventListener("click",e=>{if(e.target.closest("#altaOpen")){const b=$("#altaBox");b.hidden=!b.hidden;if(!b.hidden&&!b.innerHTML)b.innerHTML=altaFormHTML();if(!b.hidden)$("#alCo").focus()}});
+document.addEventListener("submit",async e=>{
+  const v=id=>(document.getElementById(id)||{}).value?.trim()||"";
+  if(e.target.id==="altaForm"){e.preventDefault();const err=[];
+    if(!v("alCo"))err.push("Escribe el nombre del club o empresa.");if(!v("alName"))err.push("Escribe la persona de contacto.");
+    if(!okEmail(v("alEmail")))err.push("Revisa el email.");if(!$("#alOk").checked)err.push("Acepta la política de privacidad.");
+    if(err.length){$("#alErr").innerHTML=err.map(esc).join("<br>");return}
+    const ref=await sendRequest("alta",{company:v("alCo"),name:v("alName"),email:v("alEmail"),tel:v("alTel"),products:"Alta de área de cliente · "+$("#alType").value,comments:v("alMsg")},$("#alLogo").files[0],e.target.querySelector("button[type=submit]"),$("#alErr"));
+    if(ref)$("#altaBox").innerHTML=`<div class="note ok" style="margin-top:12px">✓ Recibido. Te escribimos a ${esc(v("alEmail"))||"tu email"} con el acceso en 24 h laborables. Referencia ${ref}.</div>`;}
+  if(e.target.id==="contactForm"){e.preventDefault();const err=[];
+    if(!v("ctName"))err.push("Escribe tu nombre.");if(!okEmail(v("ctEmail")))err.push("Revisa el email.");if(!v("ctMsg"))err.push("Escribe tu mensaje.");if(!$("#ctOk").checked)err.push("Acepta la política de privacidad.");
+    if(err.length){$("#ctErr").innerHTML=err.map(esc).join("<br>");return}
+    const em=v("ctEmail");
+    const ref=await sendRequest("contacto",{name:v("ctName"),email:em,tel:v("ctTel"),company:v("ctCo"),products:"Mensaje de contacto",comments:v("ctMsg")},null,e.target.querySelector("button[type=submit]"),$("#ctErr"));
+    if(ref)e.target.outerHTML=`<div class="note ok" style="max-width:620px">✓ Mensaje enviado. Te respondemos a ${esc(em)} lo antes posible.</div>`;}
+});
 document.addEventListener("click",e=>{const c=e.target.closest("[data-copy]");if(!c)return;const t=c.dataset.copy;
   if(navigator.clipboard)navigator.clipboard.writeText(t).then(()=>{c.textContent="Copiado"},()=>{c.textContent=t})});
 /* rutas: #<id-de-prenda> abre el configurador; cualquier otra cosa muestra la home */
@@ -1920,7 +1979,8 @@ function renderArea(id){
         <button class="btn ghost" type="button" id="forgotBtn" style="justify-content:center;border:0">He olvidado la contraseña</button>
       </form>
       <div class="err" id="loginErr" style="color:var(--danger);font-size:14px"></div>
-      <div class="note">¿Tu club o empresa aún no tiene área? Pídenos el alta en la tienda y te enviamos el acceso por email.</div>
+      <div class="note">¿Tu club o empresa aún no tiene área? <button type="button" class="linkbtn" id="altaOpen">Solicita el alta aquí</button> y te enviamos el acceso por email.</div>
+      <div id="altaBox" hidden></div>
       
     </div></div>`;
     $("#abar")&&$("#abar").remove(); return;
@@ -1963,7 +2023,7 @@ function updateAbar(){
   const bar=$("#abar"); if(!bar)return; bar.hidden=!qty||$("#area").hidden;
   $("#aTot").textContent=eur(tot); $("#aSub").textContent=`${qty} ud · ${CUR.c.products.filter(p=>cpQty(p.id)).length} producto(s) · IVA incl.`;
 }
-$("#area").addEventListener("submit",e=>{e.preventDefault();
+$("#area").addEventListener("submit",e=>{if(e.target.id!=="loginForm")return;e.preventDefault();
   const em=$("#lgEmail").value.trim(), pw=$("#lgPass").value;
   if(!em||!pw){$("#loginErr").textContent="Escribe tu email y tu contraseña.";return}
   const b=e.target.querySelector("button[type=submit]");b.disabled=true;
@@ -2134,7 +2194,7 @@ function admQuotes(){
   const qs=loadQuotes();
   $("#admBody").innerHTML=`<div class="adm-h"><div><span class="eyebrow">Presupuestos</span><h1>Solicitudes</h1></div></div>
     <div class="tbl"><table><thead><tr><th>Ref.</th><th>Fecha</th><th>Cliente</th><th>Productos</th><th>Cantidad</th><th>Plazo pedido</th><th>Estado</th></tr></thead><tbody>
-    ${qs.map(q=>`<tr data-qref="${q.ref}"><td class="mono">${q.ref}</td><td>${dshort(q.date)}</td><td>${esc(q.company||q.name)}${q.company?`<br><small style="color:var(--muted)">${esc(q.name)}</small>`:""}</td>
+    ${qs.map(q=>`<tr data-qref="${q.ref}"><td class="mono">${q.ref}${q.kind&&q.kind!=="presupuesto"?`<br><span class="kindtag k-${q.kind}">${KIND_L[q.kind]||q.kind}</span>`:""}</td><td>${dshort(q.date)}</td><td>${esc(q.company||q.name)}${q.company?`<br><small style="color:var(--muted)">${esc(q.name)}</small>`:""}</td>
       <td>${esc(q.products)}</td><td>${esc(q.qty)}</td><td>${esc(q.deadline||"—")}</td><td><span class="st ${({nuevo:"nuevo",enviado:"produccion",aceptado:"listo",rechazado:"entregado"})[q.status]}">${QST[q.status]}</span></td></tr>`).join("")||`<tr><td colspan="7" style="color:var(--muted);padding:24px">No hay solicitudes.</td></tr>`}
     </tbody></table></div>`;
 }
@@ -2171,7 +2231,7 @@ function quoteSheet(ref){
   const msg=a.total?`Hola ${q.name.split(" ")[0]}, te enviamos el presupuesto ${q.ref} para ${q.products} (${q.qty}): ${eur(+a.total)} con IVA incluido${a.unit?`, ${a.unit}`:""}. Plazo: ${a.days||"a confirmar"}. ${a.notes?a.notes+" ":""}Si te encaja, responde a este correo y lo dejamos listo para pagar. ¡Gracias!`:"";
   $("#sheetRoot").innerHTML=`<div class="sheet" role="dialog" aria-label="Presupuesto ${q.ref}"><div class="wrap" style="max-width:980px">
     <div class="row" style="justify-content:space-between"><button class="btn" type="button" data-back>← Presupuestos</button>${q.example?`<span class="tag-ex">solicitud de ejemplo</span>`:""}</div>
-    <div class="adm-h" style="margin-top:18px"><div><span class="eyebrow">${dateES(new Date(q.date))}</span><h1 style="font-family:'Instrument Serif',Georgia,serif;font-weight:400;text-transform:none;font-size:48px">${q.ref}</h1></div>
+    <div class="adm-h" style="margin-top:18px"><div><span class="eyebrow">${q.kind&&q.kind!=="presupuesto"?KIND_L[q.kind]+" · ":""}${dateES(new Date(q.date))}</span><h1 style="font-family:'Instrument Serif',Georgia,serif;font-weight:400;text-transform:none;font-size:48px">${q.ref}</h1></div>
       <label class="field" style="min-width:220px"><span>Estado</span><select id="qStatus" data-ref="${q.ref}">${Object.entries(QST).map(([k,l])=>`<option value="${k}"${q.status===k?" selected":""}>${l}</option>`).join("")}</select></label></div>
     <div class="co">
       <div style="display:flex;flex-direction:column;gap:14px">
@@ -2182,6 +2242,7 @@ function quoteSheet(ref){
           ${q.files&&q.files.length?`<div class="phgrid">${q.files.map(f=>`<div class="phcolor">${f.key&&PH[f.key]&&isImgSrc(PH[f.key])?`<div class="phslot full"><img src="${PH[f.key]}" alt="${esc(f.name)}"></div>`:""}<span class="mono" style="font-size:12px;word-break:break-all">${esc(f.name)}</span>${f.key&&PH[f.key]?"":`<span class="dim">Solo el nombre: en la web real el archivo se guarda en el servidor.</span>`}</div>`).join("")}</div>`:`<span class="dim">No ha subido archivos.</span>`}</div>
       </div>
       <aside style="display:flex;flex-direction:column;gap:12px">
+        ${q.kind==="alta"?`<div class="step"><div class="step-h"><h3>Alta de área</h3></div><p class="dim" style="margin:0">Crea su área con los datos de la solicitud y envíale el acceso.</p><button class="btn dark" type="button" data-altaclient="${q.ref}">Crear su área de cliente</button></div>`:""}
         <div class="step"><div class="step-h"><h3>Cliente</h3></div><div><b>${esc(q.company||q.name)}</b>${q.company?`<br><small style="color:var(--muted)">${esc(q.name)}</small>`:""}</div>
           <div class="cpy">${esc(q.email)}</div>${q.tel?`<div class="cpy">${esc(q.tel)}</div>`:""}</div>
         <form class="step" id="qAnswer" data-ref="${q.ref}" novalidate>

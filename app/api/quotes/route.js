@@ -15,7 +15,7 @@ export async function POST(req) {
   const ref = /^PR-\d{2}-[A-Z0-9]{4,6}$/.test(d.ref || "") ? d.ref : "PR-" + String(new Date().getFullYear()).slice(2) + "-" + crypto.randomBytes(3).toString("hex").toUpperCase();
   const files = (Array.isArray(d.files) ? d.files : []).slice(0, 12).map((f) => ({ name: str(f.name, 200), key: f.key && String(f.key).startsWith("q_") ? String(f.key) : null, type: str(f.type, 100), size: +f.size || 0 }));
   const qt = {
-    ref, date: new Date().toISOString(), status: "nuevo", client: s && s.role === "client" ? s.client : null,
+    ref, kind: ["alta", "contacto"].includes(d.kind) ? d.kind : "presupuesto", date: new Date().toISOString(), status: "nuevo", client: s && s.role === "client" ? s.client : null,
     name: str(d.name, 120), email: str(d.email, 200), tel: str(d.tel, 40), company: str(d.company, 160),
     products: str(d.products), colors: str(d.colors), qty: str(d.qty, 200), positions: str(d.positions), inks: str(d.inks),
     tech: str(d.tech, 40), deadline: str(d.deadline, 60), comments: str(d.comments, 4000), files, answer: null,
