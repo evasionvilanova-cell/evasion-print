@@ -452,6 +452,7 @@ form.step>.field,#addrBox>.field,#addrBox>.row{flex:none}
 .mylogo img{max-width:100%;max-height:100%;object-fit:contain}.mylogo .x{position:absolute;top:-8px;right:-8px;background:var(--surface);border-radius:50%;width:20px;height:20px;font-size:14px;line-height:1}
 .csearch{display:flex;flex-direction:column;gap:6px}.cpick{grid-template-columns:repeat(auto-fill,minmax(124px,1fr))}.cpick label{display:grid;grid-template-columns:18px minmax(0,1fr);column-gap:6px;align-items:center}
 .cpick label i{grid-row:span 2}.cpick label small{max-width:none}.cpick label[hidden]{display:none}.cpick label small{font-size:10px;color:var(--muted);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.duo{display:flex;flex-direction:column;align-items:center;gap:2px}.duo input[type=color]{width:34px;height:26px;padding:0}.duo .linkbtn{font-size:11px}
 .supviews{display:flex;gap:8px;flex-wrap:wrap}.supviews figure{margin:0;width:96px;font-size:11px;text-align:center}.supviews img{width:96px;height:106px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:6px}
 .fwash{display:flex;gap:8px;flex-wrap:wrap}.fwash img{width:30px;height:30px;object-fit:contain}
 
@@ -887,7 +888,12 @@ const PALETTE_DEFAULT=[["01","Blanco","#ffffff"],["132","Rosa hueso","#efe6e5"],
 let PALETTE=PALETTE_DEFAULT; try{const x=JSON.parse(STORE.getItem("ep_colors")||"null");if(Array.isArray(x)&&x.length)PALETTE=x}catch(e){}
 const ALIAS={blanco:"01",negro:"02",gris:"58",marino:"55",royal:"05",celeste:"10",rojo:"60",burdeos:"64",verde:"56",amarillo:"03",naranja:"31",rosa:"481",fluoAm:"221",fluoNa:"223",kaki:"15"};
 const COLOR_STORE={};
-function rebuildColors(){for(const k in COLOR_STORE)delete COLOR_STORE[k];PALETTE.forEach(([c,n,h])=>COLOR_STORE[c]=[n,h])}
+function rebuildColors(){for(const k in COLOR_STORE)delete COLOR_STORE[k];let known=null;
+  PALETTE.forEach(([c,n,h,h2])=>{if(h2===undefined&&String(n).includes("/")){known=known||PALETTE.map(([,nm,hx])=>[String(nm).toUpperCase(),hx]).sort((a,b)=>b[0].length-a[0].length);h2=autoDuo(n,known)}
+    COLOR_STORE[c]=h2?[n,h,h2]:[n,h]})}
+/* colores de dos tonos (p. ej. Gris/Negro): la muestra sale partida en diagonal */
+const duoBg=(h,h2)=>h2?`linear-gradient(135deg,${h} 50%,${h2} 50%)`:h;
+const swBg=k=>duoBg(COLORS[k][1],COLORS[k][2]);
 rebuildColors();
 const COLORS=new Proxy(COLOR_STORE,{get:(t,k)=>typeof k!=="string"?t[k]:(t[k]||t[ALIAS[k]]||["Ref. "+k+" (retirado)","#c8cacf"])});
 const colorCode=k=>ALIAS[k]||k;
@@ -1145,7 +1151,7 @@ function cardHTML(p){
   const pref=colorCode(CARD_COLOR[p.id.split("-")[0]]||""), withPhoto=p.colors.find(k=>photoFor(p,k,"front")&&p.photos.byColor&&p.photos.byColor[k]);
   const nonWhite=p.colors.filter(k=>lumHex(COLORS[k][1])<230), h=[...p.id].reduce((a,c)=>a+c.charCodeAt(0),0);
   const ck=withPhoto||(p.colors.includes(pref)&&lumHex(COLORS[pref][1])<230?pref:(nonWhite.length?nonWhite[h%Math.min(nonWhite.length,6)]:p.colors[0]));
-  const dots=p.colors.slice(0,6).map(k=>`<i style="background:${COLORS[k][1]}" title="${colorLabel(k)}"></i>`).join("")+(p.colors.length>6?`<small>+${p.colors.length-6}</small>`:"");
+  const dots=p.colors.slice(0,6).map(k=>`<i style="background:${swBg(k)}" title="${colorLabel(k)}"></i>`).join("")+(p.colors.length>6?`<small>+${p.colors.length-6}</small>`:"");
   return `<button class="card" type="button" data-pid="${p.id}" aria-label="Personalizar ${esc(p.name)}">
     <div class="pic"><svg viewBox="0 0 400 440" aria-hidden="true">${prodSVG(p,ck,"front","c"+p.id+Math.random().toString(36).slice(2,6))}</svg>
     ${p.tag?`<span class="tag">${esc(p.tag)}</span>`:""}<span class="go">Personalizar</span></div>
@@ -1441,7 +1447,7 @@ $("#layers").addEventListener("pointerup",endDrag);$("#layers").addEventListener
 
 /* ============ PASO 1: color ============ */
 function renderColors(){
-  $("#gColors").innerHTML=S.product.colors.map(k=>`<button class="sw" type="button" data-c="${k}" aria-pressed="${S.color===k}" title="${colorLabel(k)}" aria-label="${colorLabel(k)}" style="background:${COLORS[k][1]}"></button>`).join("");
+  $("#gColors").innerHTML=S.product.colors.map(k=>`<button class="sw" type="button" data-c="${k}" aria-pressed="${S.color===k}" title="${colorLabel(k)}" aria-label="${colorLabel(k)}" style="background:${swBg(k)}"></button>`).join("");
   $("#colorName").textContent=colorLabel(S.color);
   $("#pName").textContent=S.product.name;
   const tech="DTF a todo color, vinilo o serigrafía a un color";
@@ -3267,7 +3273,7 @@ async function saveClientLogo(el){if(!IS_CLIENT||!SESSION)return;const key=SESSI
 
 /* ===== Buscar y marcar colores por nombre (artículos de otros proveedores) ===== */
 const normC=t=>String(t||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/\s+/g," ").trim();
-function cpickHTML(c,n,h,on){return `<label title="${esc(n)}" data-cn="${esc(normC(n+" "+c))}"><input type="checkbox" class="npC" value="${esc(c)}"${on?" checked":""}><i style="background:${h}"></i><span class="mono">${esc(c)}</span><small>${esc(n)}</small></label>`}
+function cpickHTML(c,n,h,on){return `<label title="${esc(n)}" data-cn="${esc(normC(n+" "+c))}"><input type="checkbox" class="npC" value="${esc(c)}"${on?" checked":""}><i style="background:${COLOR_STORE[c]?swBg(c):h}"></i><span class="mono">${esc(c)}</span><small>${esc(n)}</small></label>`}
 function matchColor(term){const t=normC(term);if(!t)return null;
   const list=PALETTE.map(([c,n,h])=>({c,n,h,k:normC(n)}));
   return list.find(x=>x.k===t)||list.find(x=>normC(x.c)===t)||list.filter(x=>x.k.startsWith(t+" ")||x.k.startsWith(t)).sort((a,b)=>a.k.length-b.k.length)[0]
@@ -3284,9 +3290,16 @@ document.addEventListener("click",e=>{
   const cn=e.target.closest("[data-cnew]");if(cn){const name=cn.dataset.cnew.trim(),nm=name.charAt(0).toUpperCase()+name.slice(1);
     let code="P-"+normC(name).replace(/[^a-z0-9]+/g,"").slice(0,10).toUpperCase();let k=2;while(PALETTE.some(x=>x[0]===code))code=code.replace(/\d*$/,"")+(k++);
     const known=PALETTE.map(([c,n,h])=>[String(n).toUpperCase(),h]).sort((a,b)=>b[0].length-a[0].length);
-    const hex=guessHex(nm,known);PALETTE.push([code,nm,hex]);savePalette();
+    const hex=guessHex(nm,known),d2=autoDuo(nm,known);PALETTE.push(d2?[code,nm,hex,d2]:[code,nm,hex]);savePalette();
     $(".cpick").insertAdjacentHTML("beforeend",cpickHTML(code,nm,hex,true));npCount();cn.outerHTML=`<span class="mono">✓ creado ${esc(code)}</span>`}
 });
+
+document.addEventListener("click",e=>{const b=e.target.closest("[data-cduo]");if(!b)return;const i=+b.dataset.cduo,x=PALETTE[i];
+  if(COLORS[x[0]][2])PALETTE[i]=[x[0],x[1],x[2],""];else{const parts=String(x[1]).split("/");const known=PALETTE.map(([c,n,h])=>[String(n).toUpperCase(),h]).sort((a,b)=>b[0].length-a[0].length);
+    PALETTE[i]=[x[0],x[1],x[2],parts[1]?guessHex(parts[1].trim(),known):"#111111"]}
+  savePalette();renderCats();admAttrs()});
+// dos tonos automáticos para los nombres con «/» (p. ej. «Gris/Amarillo Flúor»)
+function autoDuo(name,known){const parts=String(name).split("/").map(x=>x.trim()).filter(Boolean);return parts.length>1?guessHex(parts[1],known):null}
 function newClientSheet(){
   $("#sheetRoot").innerHTML=`<div class="sheet" role="dialog" aria-label="Nuevo cliente"><div class="wrap" style="max-width:640px">
     <button class="btn" type="button" data-back>← Clientes</button>
@@ -3436,7 +3449,8 @@ function applyImport(){
   const supNames=new Map();res.list.forEach(m=>m.colors.forEach((n,c)=>{if(!supNames.has(c))supNames.set(c,n)}));
   let pal=PALETTE.map(([c,n,h])=>[c,o.renameColors&&supNames.has(c)?titleCase(supNames.get(c)):n,h]);
   const known2=[...pal.map(([c,n,h])=>[String(supNames.get(c)||n).toUpperCase(),h])].sort((a,b)=>b[0].length-a[0].length);
-  supNames.forEach((n,c)=>{if(!pal.some(x=>x[0]===c))pal.push([c,titleCase(n),guessHex(n,known2)])});
+  supNames.forEach((n,c)=>{if(!pal.some(x=>x[0]===c)){const d=autoDuo(n,known2);pal.push(d?[c,titleCase(n),guessHex(n,known2),d]:[c,titleCase(n),guessHex(n,known2)])}});
+  pal=pal.map(x=>x[3]||!String(x[1]).includes("/")?x:[x[0],x[1],x[2],autoDuo(x[1],known2)]);
   PALETTE=pal;savePalette();
   // 2) grupos de tallas
   res.list.forEach(m=>m.sizes.forEach(([sz,code])=>{const [gid,gl]=sizeGroupFor(code,sz);let gr=SIZE_GROUPS.find(x=>x.id===gid);
@@ -3584,7 +3598,7 @@ function admCatalog(){
     ${admProdList().map((p,ix,arr)=>(ix===0||arr[ix-1].cat!==p.cat?`<tr class="noclick cathead"><td colspan="8">${esc(catLabel(p.cat))} · ${PRODUCTS.filter(x=>x.cat===p.cat).length}</td></tr>`:"")+`<tr class="noclick"><td style="width:56px"><svg viewBox="0 0 400 440" style="width:40px;height:auto" aria-hidden="true">${prodSVG(p,p.colors[0],"front","a"+p.id)}</svg></td>
       <td><b>${esc(p.name)}</b></td><td>${esc(catLabel(p.cat))}<br><small class="dim">${esc(shapeInfo(p.shape).label)}</small></td>
       <td><input type="number" step="0.01" min="0" value="${p.price.toFixed(2)}" data-pprice="${p.id}" aria-label="Precio de ${esc(p.name)}"></td>
-      <td><div class="dots">${p.colors.slice(0,8).map(k=>`<i style="background:${COLORS[k][1]}" title="${esc(colorLabel(k))}"></i>`).join("")}${p.colors.length>8?`<small>+${p.colors.length-8}</small>`:""}</div></td>
+      <td><div class="dots">${p.colors.slice(0,8).map(k=>`<i style="background:${swBg(k)}" title="${esc(colorLabel(k))}"></i>`).join("")}${p.colors.length>8?`<small>+${p.colors.length-8}</small>`:""}</div></td>
       <td><small>${prodGroups(p).map(g=>esc(g.label)).join(" · ")}</small></td>
       <td><label class="toggle"><input type="checkbox" data-pon="${p.id}"${p.off?"":" checked"}> <span style="font-weight:500;font-size:13px">${p.off?"Oculta":"Visible"}</span></label></td>
       <td style="white-space:nowrap">${DEL_ASK===p.id
@@ -3604,7 +3618,7 @@ function supplierBox(p){
   return `<section class="step" style="margin-bottom:16px">
     <div class="step-h"><h3>Buscar fotos${p.supplier&&p.supplier!=="Excel"?" de "+esc(p.supplier):""}</h3><span class="aside">${has?"El Excel trae la foto de cada color":"Búsqueda por nombre y referencia"}</span></div>
     <p class="dim" style="margin:0">Abre la foto en otra pestaña, haz clic derecho → <b>Copiar imagen</b>, vuelve aquí, pulsa <b>Pegar</b> en el recuadro que toque y luego <b>Ctrl+V</b> (⌘+V en Mac). También puedes guardarla y arrastrarla al recuadro.</p>
-    <div class="suprows">${p.colors.map(k=>`<div class="suprow"><i style="background:${COLORS[k][1]}"></i><span>${esc(colorLabel(k))}</span>
+    <div class="suprows">${p.colors.map(k=>`<div class="suprow"><i style="background:${swBg(k)}"></i><span>${esc(colorLabel(k))}</span>
       ${p.remote&&p.remote[k]?`<a class="linkbtn" href="${esc(p.remote[k])}" target="_blank" rel="noopener">Foto producto ↗</a>`:""}
       ${p.remoteModel&&p.remoteModel[k]?`<a class="linkbtn" href="${esc(p.remoteModel[k])}" target="_blank" rel="noopener">Con modelo ↗</a>`:""}
       <a class="linkbtn" href="${imgSearchUrl(p,k)}" target="_blank" rel="noopener">Buscar en Google ↗</a></div>`).join("")}</div>
@@ -3647,7 +3661,7 @@ function photoSheet(pid){
         <div class="step-h"><h3>Fotos por color</h3><span class="aside">${Object.keys(by).length} de ${p.colors.length} colores con foto</span></div>
         <p class="dim" style="margin:0">La foto real de cada color se ve tal cual en el configurador. Los colores sin foto usan la foto base o la silueta.</p>
         <div class="phgrid">${p.colors.map(k=>`<div class="phcolor">
-          <div class="row" style="gap:6px"><i style="width:14px;height:14px;border-radius:50%;background:${COLORS[k][1]};border:1px solid var(--garment-stroke);display:inline-block"></i><b style="font-size:13px">${esc(colorLabel(k))}</b></div>
+          <div class="row" style="gap:6px"><i style="width:14px;height:14px;border-radius:50%;background:${swBg(k)};border:1px solid var(--garment-stroke);display:inline-block"></i><b style="font-size:13px">${esc(colorLabel(k))}</b></div>
           <div class="phpair">${thumb(by[k]&&by[k].front,"Delante",`data-phdel="${esc(k)}" data-side="front"`,k,"front")}${thumb(by[k]&&by[k].back,"Detrás",`data-phdel="${esc(k)}" data-side="back"`,k,"back")}</div>
           <label class="btn" style="padding:3px 8px;font-size:12px;cursor:pointer;justify-content:center">Subir las dos a la vez<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" multiple hidden data-phpair="${esc(k)}"></label></div>`).join("")}</div>
       </section>
@@ -3771,8 +3785,8 @@ function admAttrs(){
         <button class="btn primary" type="submit">+ Añadir color</button>
       </form>
       <div class="err" id="ncolErr" style="color:var(--danger);font-size:14px"></div>
-      <div class="colgrid">${PALETTE.map(([c,n,h],i)=>{const used=PRODUCTS.filter(p=>p.colors.includes(c)).length;
-        return `<div class="colcard"><input type="color" value="${h}" data-chex="${i}" aria-label="Color de la referencia ${esc(c)}">
+      <div class="colgrid">${PALETTE.map(([c,n,h,h0],i)=>{const used=PRODUCTS.filter(p=>p.colors.includes(c)).length,h2=COLORS[c][2];
+        return `<div class="colcard"><span class="duo"><input type="color" value="${h}" data-chex="${i}" aria-label="Color de la referencia ${esc(c)}">${h2?`<input type="color" value="${h2}" data-chex2="${i}" aria-label="Segundo tono de ${esc(c)}"><button class="linkbtn" type="button" data-cduo="${i}" title="Quitar el segundo tono">− tono</button>`:`<button class="linkbtn" type="button" data-cduo="${i}" title="Añadir un segundo tono (colores combinados como Gris/Negro)">+ tono</button>`}</span>
           <div style="min-width:0;flex:1"><span class="mono" style="font-size:12px;color:var(--muted)">Ref. ${esc(c)} · ${used} prenda${used===1?"":"s"}</span>
           <input type="text" value="${esc(n)}" data-cname="${i}" aria-label="Nombre de la referencia ${esc(c)}"></div>
           ${COL_ASK===c?`<button class="btn" type="button" data-cdelyes="${esc(c)}" style="padding:4px 8px;font-size:12px;color:var(--danger);border-color:var(--danger)">${used?"Quitar de "+used:"Eliminar"}</button>`:`<button class="x" type="button" data-cdel="${esc(c)}" aria-label="Eliminar ${esc(n)}">×</button>`}</div>`}).join("")}</div>
@@ -3959,7 +3973,8 @@ $("#admin").addEventListener("change",e=>{
       if(impColIndex(data.hdr,"ref")<0||impColIndex(data.hdr,"price")<0){admImport();$("#impStatus").innerHTML=`<span style="color:var(--danger)">No encuentro las columnas de referencia o precio. Columnas del archivo: ${esc(data.hdr.join(", "))}</span>`;IMP.data={hdr:data.hdr,rows:[]};return}
       admImport()}).catch(err=>{$("#impStatus").innerHTML=`<span style="color:var(--danger)">${esc(err.message)}</span>`});return}
   if(["impMult","impIva","impHide","impRename"].includes(t.id)&&IMP){IMP.opt={mult:Math.max(1,parseFloat($("#impMult").value)||2),iva:$("#impIva").checked,hideDemo:$("#impHide").checked,renameColors:$("#impRename").checked};admImport();return}
-  if(t.dataset.chex!=null){PALETTE=PALETTE.map((x,i)=>i===+t.dataset.chex?[x[0],x[1],t.value]:x);savePalette();renderCats();$("#attrSaved").hidden=false}
+  if(t.dataset.chex!=null){PALETTE=PALETTE.map((x,i)=>i===+t.dataset.chex?[x[0],x[1],t.value,...(x[3]?[x[3]]:[])]:x);savePalette();renderCats();$("#attrSaved").hidden=false}
+  if(t.dataset.chex2!=null){PALETTE=PALETTE.map((x,i)=>i===+t.dataset.chex2?[x[0],x[1],x[2],t.value]:x);savePalette();renderCats();$("#attrSaved").hidden=false}
   if(t.dataset.cname!=null){const v=t.value.trim();if(v){PALETTE=PALETTE.map((x,i)=>i===+t.dataset.cname?[x[0],v,x[2]]:x);savePalette();$("#attrSaved").hidden=false}}
   if(t.dataset.glabel!=null){const v=t.value.trim();if(v){SIZE_GROUPS[+t.dataset.glabel].label=v;saveSizes();$("#attrSaved").hidden=false}}
   if(t.classList&&t.classList.contains("npC")){$("#npCount").textContent=document.querySelectorAll(".npC:checked").length}
