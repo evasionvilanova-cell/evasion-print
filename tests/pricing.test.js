@@ -19,3 +19,11 @@ test("descuento por cantidad y envío", () => {
   assert.equal(r.shipping, 5.9);
   assert.equal(r.changed, true);
 });
+
+test("serigrafía: 0,45 €/ud + clichés 38 € + IVA y mínimo de 100 ud", () => {
+  const it = (n) => [{ id: "s", pid: "cam-algodon", name: "T", q: { M: n }, total: 0, design: { els: [{ kind: "logo", tech: "seri", w: 25, recolor: "V-02" }] } }];
+  const r = priceCart({}, it(100), { ship: "tienda" });
+  // (6,90 + 0,45) × 100 = 735 − 20 % = 588 + 38 × 1,21 = 45,98 → 633,98
+  assert.equal(r.lines[0].total, 633.98);
+  assert.throws(() => priceCart({}, it(50), { ship: "tienda" }), /100 unidades/);
+});

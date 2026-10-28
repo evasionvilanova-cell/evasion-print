@@ -741,7 +741,7 @@ footer{background:var(--surface);margin-top:40px}
     </section>
 
     <section class="step">
-      <div class="step-h"><span class="num">02</span><h3>Tu diseño</h3><span class="aside">DTF a todo color o vinilo a un color</span></div>
+      <div class="step-h"><span class="num">02</span><h3>Tu diseño</h3><span class="aside">DTF, vinilo o serigrafía</span></div>
       <div class="adds">
         <label class="add" for="logoInput">+ Subir logo<small>PNG, JPG, SVG o WEBP</small></label>
         <button class="add" type="button" id="addText">+ Añadir texto<small>Vinilo de corte, 12 colores</small></button>
@@ -934,7 +934,7 @@ function sizeGridHTML(p,cell){return prodGroups(p).map((g,i)=>`<div class="label
 const plusTag=s=>isPlus(s)?`<small>+${BIG_SURCHARGE.toFixed(2).replace(".",",")}</small>`:"<small>&nbsp;</small>";
 /* Tarifas: valores por defecto. Se editan desde Gestión → Tarifas. */
 const RATES_DEFAULT={dtf:[3.00,5.00,7.00],vinylLogo:[2.50,4.00,5.50],text:[2.50,3.50,4.50,6.00],
-  name:3.00,numBack:3.50,numFront:2.00,reflect:1.00,big:1.50,prodDays:3,bigQty:50,bigDays:5,tierRows:[[1,0],[10,5],[25,10],[50,15],[100,20]],shipping:5.90,freeShip:100};
+  name:3.00,numBack:3.50,numFront:2.00,reflect:1.00,big:1.50,prodDays:3,bigQty:50,bigDays:5,tierRows:[[1,0],[10,5],[25,10],[50,15],[100,20]],shipping:5.90,freeShip:100,serPrint:0.45,serCliche:38,serMin:100};
 let RATES=JSON.parse(JSON.stringify(RATES_DEFAULT));
 try{const st=JSON.parse(STORE.getItem("ep_rates")||"{}");Object.assign(RATES,st);
   if(st.tiers&&!st.tierRows){RATES.tierRows=[1,5,10,25,50,100].map((m,i)=>[m,st.tiers[i]||0]).filter((r,i)=>i===0||r[1]>0)}delete RATES.tiers}catch(e){}
@@ -952,7 +952,7 @@ function applyRates(){
   DECO.vinylLogo=w=> w<=10?R.vinylLogo[0]: w<=20?R.vinylLogo[1]:R.vinylLogo[2];
   DECO.textTiers=[[10,R.text[0]],[20,R.text[1]],[30,R.text[2]],[38,R.text[3]]];
   DECO.text=w=> w<=10?R.text[0]: w<=20?R.text[1]: w<=30?R.text[2]:R.text[3];
-  Object.assign(DECO,{name:R.name,numBack:R.numBack,numFront:R.numFront,reflect:R.reflect});
+  Object.assign(DECO,{name:R.name,numBack:R.numBack,numFront:R.numFront,reflect:R.reflect,seri:R.serPrint??0.45,cliche:R.serCliche??38,serMin:R.serMin??100});
 }
 applyRates();
 /* Catálogo: cambios de precio, prendas desactivadas y prendas nuevas */
@@ -1433,7 +1433,7 @@ function renderColors(){
   $("#gColors").innerHTML=S.product.colors.map(k=>`<button class="sw" type="button" data-c="${k}" aria-pressed="${S.color===k}" title="${colorLabel(k)}" aria-label="${colorLabel(k)}" style="background:${COLORS[k][1]}"></button>`).join("");
   $("#colorName").textContent=colorLabel(S.color);
   $("#pName").textContent=S.product.name;
-  const tech="DTF a todo color o vinilo a un color";
+  const tech="DTF a todo color, vinilo o serigrafía a un color";
   $("#pMeta").innerHTML=`<span class="note">Prenda: <b class="mono">${eur(S.product.price)}</b>/ud · ${tech} · 2XL y 3XL +${eur(BIG_SURCHARGE)}</span>`;
 }
 $("#gColors").addEventListener("click",e=>{const b=e.target.closest("[data-c]");if(!b)return;S.color=b.dataset.c;renderColors();renderEls();renderCats();renderGallery()});
@@ -1462,19 +1462,40 @@ function textCm(el){ // medida real del vinilo: ancho × alto en cm
   const w=mctx.measureText(t).width/100*(el.h*1.38);
   return {w:Math.round(w*10)/10,h:el.h};
 }
+/* Técnicas de logo: DTF a todo color, vinilo a un color y serigrafía a un color (tiradas largas) */
+const oneColor=t=>t==="vinilo"||t==="seri";
+const INKS=()=>VINYL.filter(v=>!v[3]);
+function techText(e,short){if(e.tech==="seri")return `serigrafía${e.recolor?` a un color ${vinyl(e.recolor)[1].toLowerCase()}`:""}`;
+  if(e.tech==="vinilo")return `vinilo${e.recolor?` ${short?"":"a un color "}${vinyl(e.recolor)[1].toLowerCase()}`:""}`;return "DTF a todo color"}
+const seriCount=els=>els.filter(e=>e.kind==="logo"&&e.tech==="seri").length;
 function logoHTML(el){
-  if(el.tech!=="vinilo"||!el.recolor) return `<img src="${el.src}" alt="${esc(el.name||"")}">`;
+  if(!oneColor(el.tech)||!el.recolor) return `<img src="${el.src}" alt="${esc(el.name||"")}">`;
   const m=(el.maskSrc||el.src).replace(/'/g,"%27").replace(/\(/g,"%28").replace(/\)/g,"%29"), v=vinyl(el.recolor);
   return `<span class="recol"><img src="${el.src}" alt="${esc(el.name||"")}" style="visibility:hidden"><span style="background:${v[2]};-webkit-mask:url('${m}') center/contain no-repeat;mask:url('${m}') center/contain no-repeat"></span></span>`;
 }
 const lumHex=h=>{const n=parseInt(h.slice(1),16);return .299*(n>>16)+.587*(n>>8&255)+.114*(n&255)};
 function logoContrast(el){ // devuelve el vinilo a sugerir si no se va a ver, o null
-  if(el.tech==="vinilo"||el.lum==null)return null;
+  if(oneColor(el.tech)||el.lum==null)return null;
   const g=lumHex(COLORS[S.color][1]); if(Math.abs(g-el.lum)>=70)return null;
   return g<128?"V-01":"V-02";
 }
+
+function seriPanel(el){
+  const q=Object.values(qtyBySize()).reduce((a,b)=>a+(+b||0),0), dark=lumHex(COLORS[S.color][1])<128;
+  return `<div class="label">Color de la tinta · ${esc(vinyl(el.recolor||"V-01")[1])}</div>
+    <div class="swatches">${INKS().map(v=>`<button class="sw sq" type="button" data-srec="${v[0]}" data-id="${el.id}" aria-pressed="${el.recolor===v[0]}" title="${v[1]}" aria-label="Tinta ${v[1]}" style="background:${v[2]}"></button>`).join("")}</div>
+    <div class="note">Serigrafía: ideal para tiradas largas (desde ${DECO.serMin} ud) y diseños de <b>un solo color</b>. ${eur(DECO.seri)}/ud de estampación + <b>clichés ${eur(DECO.cliche)} + IVA</b> por logo (pago único por pedido).</div>
+    ${q<DECO.serMin?`<div class="note warn">Llevas ${q} ud. La serigrafía necesita un mínimo de ${DECO.serMin} ud: para menos, usa DTF o vinilo.</div>`:""}
+    ${dark?`<div class="note warn">Prenda oscura: la serigrafía necesita varias pasadas (base blanca) y no la recomendamos. Mejor en prendas claras, o usa DTF o vinilo.</div>`:""}`;
+}
+// Con tiradas largas, sugerir serigrafía si sale más barata que el DTF
+function seriHint(el){
+  if(el.kind!=="logo"||el.tech!=="dtf")return "";const q=Object.values(qtyBySize()).reduce((a,b)=>a+(+b||0),0);if(q<DECO.serMin)return "";
+  const dtf=DECO.dtf(el.w)*q, seri=DECO.seri*q+DECO.cliche*1.21;if(seri>=dtf)return "";
+  return `<div class="note" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">Con ${q} ud, si el logo es de un solo color, en serigrafía te ahorras ~${eur(r2(dtf-seri))}. <button class="btn" type="button" data-toseri="${el.id}" style="padding:4px 10px">Pasar a serigrafía</button></div>`;
+}
 function elPrice(el){
-  if(el.kind==="logo") return el.tech==="vinilo"?DECO.vinylLogo(el.w)+(vinyl(el.recolor||"V-01")[3]==="refl"?DECO.reflect:0):DECO.dtf(el.w);
+  if(el.kind==="logo") return el.tech==="seri"?DECO.seri:el.tech==="vinilo"?DECO.vinylLogo(el.w)+(vinyl(el.recolor||"V-01")[3]==="refl"?DECO.reflect:0):DECO.dtf(el.w);
   return DECO.text(textCm(el).w)+(vinyl(el.vinyl)[3]==="refl"?DECO.reflect:0);
 }
 const fmtCm=n=>String(Math.round(n*10)/10).replace(".",",");
@@ -1501,17 +1522,17 @@ function renderEls(){
         <div class="el-h"><span class="thumb" style="background-image:url('${el.src}')"></span><b>${esc(el.name)}</b><span class="price">+${eur(elPrice(el))}/ud</span><button class="x" type="button" data-del="${el.id}" aria-label="Quitar logo">×</button></div>
         <div class="row">
           <label class="field"><span>Posición</span><select data-k="place" data-id="${el.id}">${places.map(([k,p])=>`<option value="${k}"${el.place===k?" selected":""}>${p.label}</option>`).join("")}${el.place==="libre"?`<option value="libre" selected>Libre (${el.side==="front"?"delante":"detrás"})</option>`:""}</select></label>
-          <label class="field"><span>Técnica</span><select data-k="tech" data-id="${el.id}"><option value="dtf"${el.tech!=="vinilo"?" selected":""}>DTF a todo color</option><option value="vinilo"${el.tech==="vinilo"?" selected":""}>Vinilo a un color</option></select></label>
+          <label class="field"><span>Técnica</span><select data-k="tech" data-id="${el.id}"><option value="dtf"${!oneColor(el.tech)?" selected":""}>DTF a todo color</option><option value="vinilo"${el.tech==="vinilo"?" selected":""}>Vinilo a un color</option><option value="seri"${el.tech==="seri"?" selected":""}>Serigrafía a un color (desde ${DECO.serMin} ud)</option></select></label>
         </div>
         <label class="field"><span>Ancho: <b class="mono">${el.w} cm</b> · <span class="dim">${dimLabel(el)}</span></span><input type="range" min="4" max="${maxW}" step="1" value="${Math.min(el.w,maxW)}" data-k="w" data-id="${el.id}"></label>
         <div class="row" style="justify-content:space-between"><span class="dim">Ajusta la posición o arrástralo en la prenda</span>${pad(el.id)}</div>
-        ${el.tech==="vinilo"?`<div class="label">Color del vinilo · ${esc(vinyl(el.recolor||"V-01")[0]+" "+vinyl(el.recolor||"V-01")[1])}</div>
+        ${el.tech==="seri"?seriPanel(el):el.tech==="vinilo"?`<div class="label">Color del vinilo · ${esc(vinyl(el.recolor||"V-01")[0]+" "+vinyl(el.recolor||"V-01")[1])}</div>
         <div class="swatches">${VINYL.map(v=>`<button class="sw sq ${v[3]||""}" type="button" data-lrec="${v[0]}" data-id="${el.id}" aria-pressed="${el.recolor===v[0]}" title="${v[0]} ${v[1]}${v[3]==="refl"?" (+"+eur(DECO.reflect)+")":""}" aria-label="Vinilo ${v[1]}" style="background:${v[2]}"><i>${v[0].slice(2)}</i></button>`).join("")}</div>
         <div class="note">Vinilo de corte: todo el logo sale en un solo color. Funciona con logos de formas limpias, sin degradados ni fotos; lo dejamos listo para cortar en la revisión del archivo.</div>
         ${el.whiteBg?`<div class="note">Hemos quitado el fondo blanco para cortar solo el dibujo.</div>`:""}`
         :`<div class="note">DTF: se imprime el logo con sus colores originales, también degradados y fotos.</div>
-        ${(()=>{const sug=logoContrast(el);return sug?`<div class="note warn" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">El logo es ${sug==="V-01"?"oscuro":"claro"} y la prenda también: casi no se verá. <button class="btn" type="button" data-lrec="${sug}" data-id="${el.id}" style="padding:4px 10px">Pasarlo a vinilo ${sug==="V-01"?"blanco":"negro"}</button></div>`:""})()}`}
-        ${!el.vector&&el.tech!=="vinilo"?`<label class="toggle" style="font-weight:500;font-size:14px"><input type="checkbox" data-k="knock" data-id="${el.id}"${el.knock?" checked":""}> Quitar fondo blanco</label>`:""}
+        ${seriHint(el)}${(()=>{const sug=logoContrast(el);return sug?`<div class="note warn" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">El logo es ${sug==="V-01"?"oscuro":"claro"} y la prenda también: casi no se verá. <button class="btn" type="button" data-lrec="${sug}" data-id="${el.id}" style="padding:4px 10px">Pasarlo a vinilo ${sug==="V-01"?"blanco":"negro"}</button></div>`:""})()}`}
+        ${!el.vector&&!oneColor(el.tech)?`<label class="toggle" style="font-weight:500;font-size:14px"><input type="checkbox" data-k="knock" data-id="${el.id}"${el.knock?" checked":""}> Quitar fondo blanco</label>`:""}
         ${warn}</div>`;
     }
     return `<div class="el${S.sel===el.id?" sel":""}" data-id="${el.id}">
@@ -1548,7 +1569,7 @@ function liveEl(el){
 $("#elList").addEventListener("change",e=>{
   const t=e.target, el=S.els.find(x=>x.id===t.dataset.id); if(!el)return; const k=t.dataset.k;
   if(k==="place"&&PLACES[t.value]){const p=PLACES[t.value];Object.assign(el,{side:p.side,x:p.x,y:p.y,place:t.value});el.w=p.w;S.side=p.side}
-  else if(k==="tech"){el.tech=t.value;if(el.tech==="vinilo"&&!el.recolor){const g=lumHex(COLORS[S.color][1]);el.recolor=g<128?"V-01":"V-02"}}
+  else if(k==="tech"){el.tech=t.value;if(oneColor(el.tech)&&(!el.recolor||(el.tech==="seri"&&vinyl(el.recolor)[3]))){const g=lumHex(COLORS[S.color][1]);el.recolor=g<128?"V-01":"V-02"}renderTill()}
   else if(k==="font"){el.font=t.value}
   else if(k==="tplace"&&TEXT_PLACES[t.value]){const p=TEXT_PLACES[t.value];Object.assign(el,{side:p.side,x:p.x,y:p.y,place:t.value});if(t.value==="manga"||t.value==="nuca"||t.value==="pecho")el.h=Math.min(el.h,3);S.side=p.side}
   else if(k==="side"){el.side=t.value;S.side=t.value}
@@ -1563,6 +1584,8 @@ $("#elList").addEventListener("click",e=>{
     const sel=document.querySelector(`.el[data-id="${el.id}"] select[data-k="tplace"],.el[data-id="${el.id}"] select[data-k="place"]`);
     if(sel&&!sel.querySelector('option[value="libre"]')){sel.insertAdjacentHTML("beforeend",`<option value="libre">Libre (${el.side==="front"?"delante":"detrás"})</option>`)}if(sel)sel.value="libre";return}
   const d=e.target.closest("[data-del]"); if(d){S.els=S.els.filter(x=>x.id!==d.dataset.del);renderEls();return}
+  const sr=e.target.closest("[data-srec]"); if(sr){const el=S.els.find(x=>x.id===sr.dataset.id);el.recolor=sr.dataset.srec;el.tech="seri";S.side=el.side;S.sel=el.id;renderEls();renderTill();return}
+  const toS=e.target.closest("[data-toseri]"); if(toS){const el=S.els.find(x=>x.id===toS.dataset.toseri);el.tech="seri";if(!el.recolor||vinyl(el.recolor)[3]){const g=lumHex(COLORS[S.color][1]);el.recolor=g<128?"V-01":"V-02"}S.sel=el.id;renderEls();renderTill();return}
   const lr=e.target.closest("[data-lrec]"); if(lr){const el=S.els.find(x=>x.id===lr.dataset.id);el.recolor=lr.dataset.lrec;el.tech="vinilo";S.side=el.side;S.sel=el.id;renderEls();return}
   const v=e.target.closest("[data-v]"); if(v&&v.dataset.id){const el=S.els.find(x=>x.id===v.dataset.id);el.vinyl=v.dataset.v;S.side=el.side;renderEls();return}
   const c=e.target.closest(".el"); if(c&&S.sel!==c.dataset.id){S.sel=c.dataset.id;const el=S.els.find(x=>x.id===S.sel);S.side=el.side;
@@ -1660,7 +1683,8 @@ function renderSizes(){
   const t=Object.values(q).reduce((a,b)=>a+(+b||0),0); $("#qtyAside").textContent=t+" ud";
 }
 $("#sizesWrap").addEventListener("input",e=>{const s=e.target.dataset.sz;if(!s)return;S.sizes[s]=Math.max(0,Math.min(999,parseInt(e.target.value)||0));
-  const t=Object.values(S.sizes).reduce((a,b)=>a+b,0);$("#qtyAside").textContent=t+" ud";renderTill()});
+  const t=Object.values(S.sizes).reduce((a,b)=>a+b,0);$("#qtyAside").textContent=t+" ud";renderTill();
+  clearTimeout(window._elT);window._elT=setTimeout(()=>{if(S.els.some(e=>e.kind==="logo"))renderEls()},250)});
 
 /* ============ PRECIO ============ */
 function tierFor(q){let d=0;TIERS.forEach(([min,pct])=>{if(q>=min)d=pct});return d}
@@ -1673,7 +1697,7 @@ function quote(){
   if(T.on) T.rows.forEach(r=>{let k=0;if(T.name&&r.name){team+=DECO.name;k++}if(T.numB&&r.num){team+=DECO.numBack;k++}if(T.numF&&r.num){team+=DECO.numFront;k++}if(refl)team+=DECO.reflect*k});
   const deco=decoUnit*qty+team;
   const pct=tierFor(qty), discount=(garment+deco)*pct;
-  const setup=0;
+  const setup=seriCount(S.els)*DECO.cliche*1.21;
   const total=garment+deco-discount+setup;
   const days=prodDays(qty);
   // siguiente tramo
@@ -1686,6 +1710,7 @@ function problems(Q){
   if(S.team.on&&(S.team.numB||S.team.numF)&&S.team.rows.some(r=>!r.num))p.push("Falta el número en alguna fila.");
   if(S.team.on&&S.team.name&&S.team.rows.some(r=>!r.name))p.push("Falta el nombre en alguna fila (o desmarca «Nombre»).");
   if(S.els.some(e=>e.kind==="text"&&!e.text.trim()))p.push("Hay un texto vacío.");
+  if(seriCount(S.els)&&Q.qty<DECO.serMin)p.push(`La serigrafía es a partir de ${DECO.serMin} ud (llevas ${Q.qty}). Para menos, cambia el logo a DTF o vinilo.`);
   return p;
 }
 function renderTill(){
@@ -1696,6 +1721,7 @@ function renderTill(){
       ${S.els.length?`<span>Personalización (${S.els.length} elemento${S.els.length===1?"":"s"})</span><span>${eur(Q.decoUnit*Q.qty)}</span>`:S.team.on?"":`<span>Sin estampar <small style="opacity:.7">· puedes añadir logo o texto arriba</small></span><span>${eur(0)}</span>`}
       ${S.team.on?`<span>Nombres y números</span><span>${eur(Q.team)}</span>`:""}
       ${Q.discount?`<span>Descuento por cantidad (−${Math.round(Q.pct*100)} %)</span><span>−${eur(Q.discount)}</span>`:""}
+      ${Q.setup?`<span>Clichés de serigrafía (${seriCount(S.els)} × ${eur(DECO.cliche)} + IVA)</span><span>${eur(Q.setup)}</span>`:""}
     </div>
     ${(()=>{const shown=TIERS.filter(([m,p],i)=>i===0||p>0);if(shown.length<2)return "";
       return `<div class="ladder" aria-label="Descuentos por cantidad" style="grid-template-columns:repeat(${shown.length},1fr)">${shown.map(([m,p])=>`<div class="${Q.pct===p&&Q.qty?"on":""}">${m}+<br>${p?"−"+Math.round(p*100)+"%":"base"}</div>`).join("")}</div>`})()}
@@ -1745,21 +1771,21 @@ function posText(e){
 function addToCart(){
   const Q=quote(); if(problems(Q).length)return;
   const q=qtyBySize(); const sizes=Object.entries(q).filter(([,n])=>n).map(([s,n])=>`${n}×${s}`).join(" ");
-  const parts=S.els.map(e=>e.kind==="logo"?`Logo ${e.tech==="vinilo"?"vinilo":"DTF"} ${e.w} cm (${e.place&&PLACES[e.place]?PLACES[e.place].label.toLowerCase():"posición libre"})${e.tech==="vinilo"&&e.recolor?` a un color ${vinyl(e.recolor)[0]} ${vinyl(e.recolor)[1].toLowerCase()}`:" a todo color"}`:`Texto «${e.text}» ${dimLabel(e)} vinilo ${vinyl(e.vinyl)[1].toLowerCase()}`);
+  const parts=S.els.map(e=>e.kind==="logo"?`Logo ${e.tech==="seri"?"serigrafía":e.tech==="vinilo"?"vinilo":"DTF"} ${e.w} cm (${e.place&&PLACES[e.place]?PLACES[e.place].label.toLowerCase():"posición libre"})${e.tech==="vinilo"&&e.recolor?` a un color ${vinyl(e.recolor)[0]} ${vinyl(e.recolor)[1].toLowerCase()}`:" a todo color"}`:`Texto «${e.text}» ${dimLabel(e)} vinilo ${vinyl(e.vinyl)[1].toLowerCase()}`);
   if(!S.els.length&&!S.team.on)parts.push("Prenda lisa, sin estampar");
   if(S.team.on){const t=[S.team.name&&"nombre",S.team.numB&&"nº espalda",S.team.numF&&"nº delante"].filter(Boolean).join(" + ");parts.push(`${t} en vinilo ${vinyl(S.team.vinyl)[1].toLowerCase()}`)}
   // desglose para el carrito y el resumen de pago: todo lo que se cobra
   const sideL=e=>e.side==="front"?"delante":"detrás";
   const bk=[{l:`${!S.els.length&&!S.team.on?"Prenda lisa, sin estampar":"Prenda"} · ${colorLabel(S.color)}`,d:`${Q.qty} ud`,a:Q.garment}];
   S.els.forEach(e=>{const u=elPrice(e);
-    const l=e.kind==="logo"?`Logo ${e.tech==="vinilo"?`vinilo ${vinyl(e.recolor||"V-01")[1].toLowerCase()}`:"DTF a todo color"} · ${dimLabel(e)} · ${sideL(e)}`:`Texto «${e.text}» · vinilo ${vinyl(e.vinyl)[1].toLowerCase()} · ${dimLabel(e)} · ${sideL(e)}`;
+    const l=e.kind==="logo"?`Logo ${techText(e,true)} · ${dimLabel(e)} · ${sideL(e)}`:`Texto «${e.text}» · vinilo ${vinyl(e.vinyl)[1].toLowerCase()} · ${dimLabel(e)} · ${sideL(e)}`;
     bk.push({l,d:`${eur(u)} × ${Q.qty}`,a:u*Q.qty})});
   if(S.team.on){const T=S.team, rf=vinyl(T.vinyl)[3]==="refl"?DECO.reflect:0, nN=T.rows.filter(r=>r.name).length, nNum=T.rows.filter(r=>r.num).length, vn=vinyl(T.vinyl)[1].toLowerCase();
     if(T.name&&nN)bk.push({l:`Nombres en la espalda · vinilo ${vn}`,d:`${eur(DECO.name+rf)} × ${nN}`,a:(DECO.name+rf)*nN});
     if(T.numB&&nNum)bk.push({l:`Números en la espalda · vinilo ${vn}`,d:`${eur(DECO.numBack+rf)} × ${nNum}`,a:(DECO.numBack+rf)*nNum});
     if(T.numF&&nNum)bk.push({l:`Números delante · vinilo ${vn}`,d:`${eur(DECO.numFront+rf)} × ${nNum}`,a:(DECO.numFront+rf)*nNum});}
   if(Q.discount)bk.push({l:`Descuento por cantidad (−${Math.round(Q.pct*100)} %)`,d:"",a:-Q.discount});
-  if(Q.setup)bk.push({l:"Preparación",d:"",a:Q.setup});
+  if(Q.setup)bk.push({l:`Clichés de serigrafía (${seriCount(S.els)} × ${eur(DECO.cliche)} + IVA)`,d:"pago único",a:Q.setup});
   const cid="L"+Date.now();
   const design=snapshotDesign(cid,S.product.id,S.color,S.els,S.team.on?{on:true,name:S.team.name,numB:S.team.numB,numF:S.team.numF,style:S.team.style,vinyl:S.team.vinyl}:null);
   cart.push({id:cid,design,q:S.team.on?null:{...qtyBySize()},bk:bk.map(x=>({...x,a:Math.round(x.a*100)/100})),pid:S.product.id,name:S.product.name,shape:S.product.shape,color:S.color,qty:Q.qty,total:+Q.total.toFixed(2),days:Q.days,sizes,parts,
@@ -1994,7 +2020,7 @@ function miniHTML(cp,side){
   return h;
 }
 function specText(cp){
-  return cp.els.map(e=>e.kind==="logo"?`Logo ${e.tech==="vinilo"?"vinilo":"DTF"} ${e.w} cm ${e.side==="front"?"delante":"detrás"}${e.tech==="vinilo"&&e.recolor?` a un color ${vinyl(e.recolor)[1].toLowerCase()}`:" a todo color"}`:`Texto «${e.text}» vinilo ${vinyl(e.vinyl)[1].toLowerCase()}`).join(" · ");
+  return cp.els.map(e=>e.kind==="logo"?`Logo ${e.tech==="seri"?"serigrafía":e.tech==="vinilo"?"vinilo":"DTF"} ${e.w} cm ${e.side==="front"?"delante":"detrás"}${e.tech==="vinilo"&&e.recolor?` a un color ${vinyl(e.recolor)[1].toLowerCase()}`:" a todo color"}`:`Texto «${e.text}» vinilo ${vinyl(e.vinyl)[1].toLowerCase()}`).join(" · ");
 }
 function cpQty(id){return Object.values(AQ[id]||{}).reduce((a,b)=>a+(+b||0),0)}
 function cpTotal(cp){const q=AQ[cp.id]||{};return cpQty(cp.id)*cp.price+plusQty(q)*BIG_SURCHARGE}
@@ -2295,7 +2321,7 @@ function renderQuote(){
         <label class="field"><span>Colores de los productos <b>*</b></span><input type="text" id="qColors" placeholder="Negro, blanco, marino…"></label>
         <label class="field"><span>Cantidad aproximada <b>*</b></span><input type="text" id="qQty" placeholder="p. ej. 150 camisetas, 40 sudaderas"></label>
         <label class="field"><span>Posiciones de impresión <b>*</b></span><input type="text" id="qPos" placeholder="Pecho, espalda, manga…"></label>
-        <label class="field"><span>Técnica</span><select id="qTech"><option value="no-se">No lo sé, aconsejadme</option><option value="dtf">DTF a todo color</option><option value="vinilo">Vinilo a un color</option></select></label>
+        <label class="field"><span>Técnica</span><select id="qTech"><option value="no-se">No lo sé, aconsejadme</option><option value="dtf">DTF a todo color</option><option value="vinilo">Vinilo a un color</option><option value="seri">Serigrafía a un color (más de 100 ud)</option></select></label>
         <label class="field"><span>¿Cuántos colores tiene el diseño?</span><input type="text" id="qInks" inputmode="numeric" placeholder="p. ej. 2, o «degradado / foto»"></label>
         <div class="field full"><span>Diseño o logo</span>
           <label class="add" for="qFile" style="cursor:pointer">+ Subir archivos<small>JPG, PNG, PDF, AI, EPS o SVG · hasta 15 MB cada uno</small></label>
@@ -2355,7 +2381,7 @@ $("#quote").addEventListener("submit",async e=>{
     <div class="row"><a class="btn primary big" href="#catalogo">Ver el catálogo</a><a class="btn big" href="#">Volver al inicio</a></div>
   </div></div>`;window.scrollTo(0,0);
 });
-const TECHQ={"no-se":"No lo sabe","dtf":"DTF a todo color","vinilo":"Vinilo a un color"};
+const TECHQ={"no-se":"No lo sabe","dtf":"DTF a todo color","vinilo":"Vinilo a un color","seri":"Serigrafía a un color"};
 function admQuotes(){
   const qs=loadQuotes();
   $("#admBody").innerHTML=`<div class="adm-h"><div><span class="eyebrow">Presupuestos</span><h1>Solicitudes</h1></div></div>
@@ -2572,7 +2598,7 @@ function refundFor(i,key){
   const d=i.design, pct=tierFor(i.qty), q=i.qty;
   if(key.startsWith("el:")){const e=d.els[+key.slice(3)];if(!e)return 0;
     const refl=v=>vinyl(v||"V-01")[3]==="refl"?DECO.reflect:0;
-    const unit=e.kind==="logo"?(e.tech==="vinilo"?DECO.vinylLogo(e.w)+refl(e.recolor):DECO.dtf(e.w)):DECO.text(e.wcm||0)+refl(e.vinyl);
+    const unit=e.kind==="logo"?(e.tech==="seri"?DECO.seri:e.tech==="vinilo"?DECO.vinylLogo(e.w)+refl(e.recolor):DECO.dtf(e.w)):DECO.text(e.wcm||0)+refl(e.vinyl);
     return r2(unit*q*(1-pct))}
   const T=d.team, rows=i.roster||[], rf=T&&vinyl(T.vinyl)[3]==="refl"?DECO.reflect:0;
   if(key==="team:name")return r2(rows.filter(r=>r.name).length*(DECO.name+rf)*(1-pct));
@@ -2594,7 +2620,7 @@ function designDetail(i,ref,n){
     if(e.kind==="logo"){const hcm=e.w*(e.ar||1), src=PH[e.file], dpi=!e.vector&&e.px?Math.round(e.px/(e.w/2.54)):null;
       rows.push(`<div class="pd"><div class="pd-file">${src?`<button type="button" class="pd-thumb" data-zoom="${e.file}" aria-label="Ver ${esc(e.name)} a tamaño completo"><img src="${src}" alt=""></button>`:`<span class="pd-thumb missing">sin archivo</span>`}</div>
         <div><b>${sideL} · Logo</b> <span class="mono">${esc(e.name)}</span>
-        <div>${e.tech==="vinilo"?`Vinilo a un color <b>${vinyl(e.recolor||"V-01")[0]} ${vinyl(e.recolor||"V-01")[1]}</b>`:"DTF a todo color"} · <b>${fmtCm(e.w)} × ${fmtCm(hcm)} cm</b>${dpi?` · ${dpi} ppp${dpi<150?" ⚠ baja":""}`:e.vector?" · vectorial":""}</div>
+        <div>${e.tech==="seri"?`Serigrafía a un color · tinta <b>${vinyl(e.recolor||"V-01")[1]}</b>`:e.tech==="vinilo"?`Vinilo a un color <b>${vinyl(e.recolor||"V-01")[0]} ${vinyl(e.recolor||"V-01")[1]}</b>`:"DTF a todo color"} · <b>${fmtCm(e.w)} × ${fmtCm(hcm)} cm</b>${dpi?` · ${dpi} ppp${dpi<150?" ⚠ baja":""}`:e.vector?" · vectorial":""}</div>
         <div class="dim">${esc(place)} · ${posText(e)}</div>
         ${e.orig&&PH[e.orig]?`<div class="dim">El cliente quitó el fondo blanco. <button type="button" class="linkbtn" data-zoom="${e.orig}">Ver el original</button></div>`:""}
         ${src?`<div class="pd-act dl-only"><button class="linkbtn" type="button" data-dl="${e.orig&&PH[e.orig]?e.orig:e.file}" data-dlname="${esc(e.name)}">Descargar el archivo del cliente</button>${e.orig&&PH[e.orig]?`<button class="linkbtn" type="button" data-dl="${e.file}" data-dlname="${esc(e.name)}-sin-fondo">Descargar sin fondo</button>`:""}</div>`:""}
@@ -2994,7 +3020,7 @@ document.addEventListener("submit",e=>{if(e.target.id!=="ceForm")return;e.preven
 /* ===== Rentabilidad (estimada) =====
    Ventas sin IVA − coste de la prenda (precio del proveedor) − material de DTF y vinilo por cm²
    (con un % de merma) − envío − comisión del TPV. No incluye mano de obra ni gastos fijos. */
-const COST_DEF={dtfEur:7,dtfW:60,dtfH:100,vinEur:9,vinW:300,vinH:30,waste:15,shipCost:5,tpvPct:0,nameW:30,nameH:6,numBH:25,numBW:20,numFH:8,numFW:8};
+const COST_DEF={serUnit:0.10,serCliche:0,dtfEur:7,dtfW:60,dtfH:100,vinEur:9,vinW:300,vinH:30,waste:15,shipCost:5,tpvPct:0,nameW:30,nameH:6,numBH:25,numBW:20,numFH:8,numFW:8};
 const CST=()=>({...COST_DEF,...(RATES.costs||{})});
 function itemCost(i){
   const C=CST(),dtf=C.dtfEur/(C.dtfW*C.dtfH),vin=C.vinEur/(C.vinW*C.vinH),k=1+C.waste/100;
@@ -3003,7 +3029,7 @@ function itemCost(i){
   const p=prodById(i.pid);
   if(p&&p.cost)out.garment=p.cost*qty;else out.unknown.push(`${i.name}: prenda sin precio de coste`);
   const d=i.design||{};
-  (d.els||[]).forEach(e=>{if(e.kind==="logo"){const a=(+e.w||0)*(+e.w||0)*(e.ar||1);if(e.tech==="vinilo")out.vinyl+=a*vin*k*qty;else out.dtf+=a*dtf*k*qty}
+  (d.els||[]).forEach(e=>{if(e.kind==="logo"){const a=(+e.w||0)*(+e.w||0)*(e.ar||1);if(e.tech==="seri"){out.dtf+=C.serUnit*qty+C.serCliche}else if(e.tech==="vinilo")out.vinyl+=a*vin*k*qty;else out.dtf+=a*dtf*k*qty}
     else{out.vinyl+=(+e.wcm||0)*(+e.h||0)*vin*k*qty}});
   const T=d.team;if(T&&T.on)(i.roster||[]).forEach(r=>{let a=0;if(T.name&&r.name)a+=C.nameW*C.nameH;if(T.numB&&r.num)a+=C.numBW*C.numBH;if(T.numF&&r.num)a+=C.numFW*C.numFH;out.vinyl+=a*vin*k});
   if(!i.design&&!i.free)out.unknown.push(`${i.name}: sin datos del diseño`);
@@ -3039,7 +3065,7 @@ function admProfit(orders){
       <div class="kpi"><b>${pct(margin)}</b><span>Margen sobre ventas</span></div></div>
     <div class="pfgrid">
       <div class="step"><div class="step-h"><h3>De dónde sale el coste</h3></div>
-        <div class="pfbars">${[["Prendas (proveedor)",S.garment],["DTF",S.dtf],["Vinilo",S.vinyl],["Envíos",S.ship],["Comisión TPV",S.tpv]].map(([l,v])=>{const tot=S.garment+S.dtf+S.vinyl+S.ship+S.tpv||1;
+        <div class="pfbars">${[["Prendas (proveedor)",S.garment],["DTF / serigrafía",S.dtf],["Vinilo",S.vinyl],["Envíos",S.ship],["Comisión TPV",S.tpv]].map(([l,v])=>{const tot=S.garment+S.dtf+S.vinyl+S.ship+S.tpv||1;
           return `<div><span>${l}</span><span class="bar"><i style="width:${Math.max(0,v/tot*100).toFixed(1)}%"></i></span><b class="mono">${eur(v)}</b></div>`}).join("")}</div>
         ${inc?`<div class="note warn">${inc} pedido(s) con algún coste desconocido (prenda sin precio de coste o línea libre): su beneficio sale más alto de lo real.</div>`:""}
         ${pend?`<div class="note">Incluye ${pend} pedido(s) pendientes de cobro.</div>`:""}
@@ -3055,6 +3081,7 @@ function admProfit(orders){
     <details class="step" style="margin-top:18px"><summary class="step-h" style="cursor:pointer"><h3>Costes de material y otros</h3><span class="aside">Se guardan al cambiar</span></summary>
       <div class="formgrid">${cin("dtfEur","DTF: precio del metro (€)")}${cin("dtfW","DTF: ancho (cm)","1")}${cin("dtfH","DTF: largo (cm)","1")}
         ${cin("vinEur","Vinilo: precio del rollo (€)")}${cin("vinW","Vinilo: largo del rollo (cm)","1")}${cin("vinH","Vinilo: ancho (cm)","1")}
+        ${cin("serUnit","Serigrafía: coste por estampación (€)")}${cin("serCliche","Serigrafía: tu coste por cliché (€)")}
         ${cin("waste","Merma y separación (%)","1")}${cin("shipCost","Coste de cada envío (€)")}${cin("tpvPct","Comisión TPV / Bizum (%)")}
         ${cin("nameW","Nombre: ancho (cm)","1")}${cin("nameH","Nombre: alto (cm)","1")}${cin("numBW","Nº espalda: ancho (cm)","1")}${cin("numBH","Nº espalda: alto (cm)","1")}${cin("numFW","Nº delante: ancho (cm)","1")}${cin("numFH","Nº delante: alto (cm)","1")}</div>
       <p class="dim" style="margin:0;font-size:13px">DTF ${eur(C.dtfEur)} por ${C.dtfW}×${C.dtfH} cm = ${(C.dtfEur/(C.dtfW*C.dtfH)*100).toFixed(3).replace(".",",")} € cada 100 cm² · Vinilo ${eur(C.vinEur)} por ${C.vinW}×${C.vinH} cm = ${(C.vinEur/(C.vinW*C.vinH)*100).toFixed(3).replace(".",",")} € cada 100 cm². El coste de cada prenda es el precio del proveedor del Excel (talla M/L).</p></details>`;
@@ -3604,6 +3631,10 @@ function admRates(){
           <button class="x" type="button" data-tdel="${i}" aria-label="Quitar tramo" style="align-self:flex-end" ${i===0?"disabled":""}>×</button></div>`).join("")}</div>
         <button class="btn" type="button" id="tierAdd" style="align-self:flex-start">+ Añadir tramo</button></div>
       <div class="rategroup"><h3>Tallas y envío</h3><p>Suplementos y portes</p><div class="formgrid">${inp("big",R.big,"Suplemento 2XL/3XL")}${inp("shipping",R.shipping,"Envío")}${inp("freeShip",R.freeShip,"Envío gratis desde")}</div></div>
+      <div class="rategroup"><h3>Serigrafía a un color</h3><p>Para tiradas largas. Los clichés se cobran una vez por logo y pedido (precio sin IVA).</p><div class="formgrid">
+        <label class="field"><span>Estampación por unidad (€)</span><input type="number" step="0.01" min="0" data-rate="serPrint" value="${R.serPrint??0.45}"></label>
+        <label class="field"><span>Cliché por logo, sin IVA (€)</span><input type="number" step="0.01" min="0" data-rate="serCliche" value="${R.serCliche??38}"></label>
+        <label class="field"><span>Mínimo de unidades</span><input type="number" step="1" min="1" data-rate="serMin" value="${R.serMin??100}"></label></div></div>
       <div class="rategroup"><h3>Plazos de producción</h3><p>Días laborables desde la revisión del archivo. Se usan para la fecha que ve el cliente.</p><div class="formgrid">
         <label class="field"><span>Plazo normal (días)</span><input type="number" step="1" min="1" data-rate="prodDays" value="${R.prodDays||3}"></label>
         <label class="field"><span>Pedido grande desde (ud)</span><input type="number" step="1" min="2" data-rate="bigQty" value="${R.bigQty||50}"></label>
