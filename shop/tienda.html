@@ -2746,10 +2746,6 @@ function fichaHTML(p){
   const f=p.info||{}, rows=[];
   if(f.comp)rows.push(["Composición",f.comp]);
   if(f.gsm&&!/g\/m/.test(f.comp||""))rows.push(["Gramaje",f.gsm+" g/m²"]);
-  if(f.pack)rows.push(["Unidades pack",f.pack]);
-  if(f.box)rows.push(["Unidades caja",f.box]);
-  if(f.origin)rows.push(["Fabricado en",f.origin]);
-  if(f.taric)rows.push(["Taric",f.taric]);
   if(p.ref)rows.push(["Referencia",(p.supplier?p.supplier+" ":"")+p.ref]);
   const meas=f.measures&&Object.keys(f.measures).length?prodSizes(p).filter(s=>f.measures[s]):[];
   if(!rows.length&&!(f.obs||[]).length&&!p.desc&&!meas.length)return "";
