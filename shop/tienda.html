@@ -450,6 +450,8 @@ form.step>.field,#addrBox>.field,#addrBox>.row{flex:none}
 @media (max-width:640px){.tfk{grid-template-columns:1fr}}
 .mylogos{display:flex;gap:6px;flex-wrap:wrap}.mylogo{position:relative;width:56px;height:56px;border:1px solid var(--line);border-radius:8px;background:#fff;padding:4px;cursor:pointer;display:grid;place-items:center}
 .mylogo img{max-width:100%;max-height:100%;object-fit:contain}.mylogo .x{position:absolute;top:-8px;right:-8px;background:var(--surface);border-radius:50%;width:20px;height:20px;font-size:14px;line-height:1}
+.csearch{display:flex;flex-direction:column;gap:6px}.cpick{grid-template-columns:repeat(auto-fill,minmax(124px,1fr))}.cpick label{display:grid;grid-template-columns:18px minmax(0,1fr);column-gap:6px;align-items:center}
+.cpick label i{grid-row:span 2}.cpick label small{max-width:none}.cpick label[hidden]{display:none}.cpick label small{font-size:10px;color:var(--muted);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .supviews{display:flex;gap:8px;flex-wrap:wrap}.supviews figure{margin:0;width:96px;font-size:11px;text-align:center}.supviews img{width:96px;height:106px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:6px}
 .fwash{display:flex;gap:8px;flex-wrap:wrap}.fwash img{width:30px;height:30px;object-fit:contain}
 
@@ -3259,6 +3261,29 @@ async function saveClientLogo(el){if(!IS_CLIENT||!SESSION)return;const key=SESSI
     const logo={id,name:el.name,file:f,mask:mu?m:null,ar:el.ar,px:el.px,vector:!!el.vector,lum:el.lum,whiteBg:!!el.whiteBg};
     const r=await api("/api/account",{action:"logo-add",logo});const ex=BOOT.kv.ep_clients||{};if(ex[key])ex[key].logos=r.logos;renderMyLogos();
     alertNote("Logo guardado en tu área: la próxima vez lo tendrás en «Tus logos».")}catch(x){}}
+
+/* ===== Buscar y marcar colores por nombre (artículos de otros proveedores) ===== */
+const normC=t=>String(t||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/\s+/g," ").trim();
+function cpickHTML(c,n,h,on){return `<label title="${esc(n)}" data-cn="${esc(normC(n+" "+c))}"><input type="checkbox" class="npC" value="${esc(c)}"${on?" checked":""}><i style="background:${h}"></i><span class="mono">${esc(c)}</span><small>${esc(n)}</small></label>`}
+function matchColor(term){const t=normC(term);if(!t)return null;
+  const list=PALETTE.map(([c,n,h])=>({c,n,h,k:normC(n)}));
+  return list.find(x=>x.k===t)||list.find(x=>normC(x.c)===t)||list.filter(x=>x.k.startsWith(t+" ")||x.k.startsWith(t)).sort((a,b)=>a.k.length-b.k.length)[0]
+    ||list.filter(x=>(" "+x.k+" ").includes(" "+t+" ")).sort((a,b)=>a.k.length-b.k.length)[0]||list.filter(x=>x.k.includes(t)).sort((a,b)=>a.k.length-b.k.length)[0]||null}
+function npCount(){const n=$("#npCount");if(n)n.textContent=document.querySelectorAll(".npC:checked").length}
+document.addEventListener("input",e=>{if(e.target.id!=="npCSearch")return;const t=normC(e.target.value);
+  document.querySelectorAll(".cpick label[data-cn]").forEach(l=>{l.hidden=!!t&&!l.dataset.cn.includes(t)})});
+document.addEventListener("click",e=>{
+  if(e.target.closest("#npCApply")){const terms=$("#npCList").value.split(/,|;|\n|\s+y\s+|\s+e\s+/i).map(x=>x.trim()).filter(Boolean);
+    const ok=[],miss=[];terms.forEach(t=>{const m=matchColor(t);if(m){const cb=document.querySelector(`.npC[value="${CSS.escape(m.c)}"]`);if(cb)cb.checked=true;ok.push([t,m])}else miss.push(t)});
+    npCount();$("#npCSearch").value="";document.querySelectorAll(".cpick label").forEach(l=>l.hidden=false);
+    $("#npCRes").innerHTML=`${ok.length?`<div class="note ok">Marcados ${ok.length}: ${ok.map(([t,m])=>`${esc(t)} → <b>${esc(m.n)}</b> <span class="mono">${esc(m.c)}</span>`).join(" · ")}</div>`:""}
+      ${miss.length?`<div class="note warn">No encontrados: ${miss.map(t=>`<b>${esc(t)}</b> <button class="linkbtn" type="button" data-cnew="${esc(t)}">Crear</button>`).join(" · ")}<br><small>Al crearlo se añade a tu carta de colores con un tono aproximado; lo puedes ajustar en Atributos.</small></div>`:""}`;return}
+  const cn=e.target.closest("[data-cnew]");if(cn){const name=cn.dataset.cnew.trim(),nm=name.charAt(0).toUpperCase()+name.slice(1);
+    let code="P-"+normC(name).replace(/[^a-z0-9]+/g,"").slice(0,10).toUpperCase();let k=2;while(PALETTE.some(x=>x[0]===code))code=code.replace(/\d*$/,"")+(k++);
+    const known=PALETTE.map(([c,n,h])=>[String(n).toUpperCase(),h]).sort((a,b)=>b[0].length-a[0].length);
+    const hex=guessHex(nm,known);PALETTE.push([code,nm,hex]);savePalette();
+    $(".cpick").insertAdjacentHTML("beforeend",cpickHTML(code,nm,hex,true));npCount();cn.outerHTML=`<span class="mono">✓ creado ${esc(code)}</span>`}
+});
 function newClientSheet(){
   $("#sheetRoot").innerHTML=`<div class="sheet" role="dialog" aria-label="Nuevo cliente"><div class="wrap" style="max-width:640px">
     <button class="btn" type="button" data-back>← Clientes</button>
@@ -3516,7 +3541,12 @@ function prodForm(p){
     </div>
     <div class="row" style="justify-content:space-between"><div class="label">Colores disponibles · <span id="npCount">${sel.length}</span> marcados</div>
       <div class="row"><button class="btn" type="button" data-npall="1" style="padding:4px 10px;font-size:13px">Todos</button><button class="btn" type="button" data-npall="0" style="padding:4px 10px;font-size:13px">Ninguno</button></div></div>
-    <div class="cpick">${PALETTE.map(([c,n,h])=>`<label title="${esc(n)}"><input type="checkbox" class="npC" value="${esc(c)}"${sel.includes(c)?" checked":""}><i style="background:${h}"></i><span class="mono">${esc(c)}</span></label>`).join("")}</div>
+    <div class="csearch">
+      <input type="search" id="npCSearch" placeholder="Buscar color por nombre o código (p. ej. royal, flúor, 05)" aria-label="Buscar color">
+      <div class="row" style="gap:6px;flex-wrap:wrap"><input type="text" id="npCList" placeholder="O pega la lista del proveedor: Royal, Rojo, Negro, Pistacho…" style="flex:1;min-width:240px" aria-label="Lista de colores del proveedor">
+        <button class="btn" type="button" id="npCApply" style="padding:6px 12px">Marcar estos colores</button></div>
+      <div id="npCRes"></div></div>
+    <div class="cpick">${PALETTE.map(([c,n,h])=>cpickHTML(c,n,h,sel.includes(c))).join("")}</div>
     <div class="label">Tallas</div>
     <div class="checks">${SIZE_GROUPS.map(g=>`<label><input type="checkbox" class="npG" value="${esc(g.id)}"${grp.includes(g.id)?" checked":""}> ${esc(g.label)} <small class="dim">(${g.sizes.map(esc).join(" ")})</small></label>`).join("")}</div>
     <details class="ficha-ed"${p&&p.info?" open":""}><summary class="label" style="cursor:pointer">Ficha técnica (se ve en la web, debajo del precio)</summary>
