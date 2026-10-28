@@ -25,7 +25,11 @@ export async function POST(req) {
   if (err.length) return fail(err.join(" "));
 
   const s = await getSession().catch(() => null);
-  const clientKey = s && s.role === "client" ? s.client : null;
+  // Gestión puede hacer el pedido en nombre de un cliente (desde «Ver su área»)
+  const fromAdmin = s && s.role === "admin";
+  const itemClients = [...new Set(items.map((i) => i && i.client).filter(Boolean))];
+  if (fromAdmin && itemClients.length > 1) return fail("El carrito tiene productos de dos clientes distintos. Haz un pedido para cada uno.");
+  const clientKey = s && s.role === "client" ? s.client : fromAdmin ? itemClients[0] || null : null;
   const kv = await loadKv();
   let price;
   try { price = priceCart(kv, items, { clientKey, ship: c.ship }); }
@@ -51,7 +55,7 @@ export async function POST(req) {
   const due = etaFrom(maxDays + (c.ship === "envio" ? 1 : 0));
   const order = {
     ref, date: new Date().toISOString(), status: "nuevo",
-    client: clientKey, by: clientKey ? s.name : null,
+    client: clientKey, by: clientKey ? (fromAdmin ? `Gestión (${String(c.name || "").trim() || s.email})` : s.name) : null,
     name: str(c.name, 120), email: str(c.email, 200).toLowerCase(), tel: str(c.tel, 40), company: str(c.company, 160), cif: str(c.cif, 30),
     ship: c.ship, addr: c.ship === "envio" ? str(c.addr, 300) : "", pay: c.pay,
     subtotal: price.subtotal, shipping: price.shipping, total: price.total, due: due.toISOString(), items: cleanItems, notes: "",
