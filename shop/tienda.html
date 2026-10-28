@@ -952,7 +952,7 @@ function applyRates(){
   DECO.vinylLogo=w=> w<=10?R.vinylLogo[0]: w<=20?R.vinylLogo[1]:R.vinylLogo[2];
   DECO.textTiers=[[10,R.text[0]],[20,R.text[1]],[30,R.text[2]],[38,R.text[3]]];
   DECO.text=w=> w<=10?R.text[0]: w<=20?R.text[1]: w<=30?R.text[2]:R.text[3];
-  Object.assign(DECO,{name:R.name,numBack:R.numBack,numFront:R.numFront,reflect:R.reflect,seri:R.serPrint??0.45,cliche:R.serCliche??38,serMin:R.serMin??100});
+  Object.assign(DECO,{name:R.name,numBack:R.numBack,numFront:R.numFront,reflect:R.reflect,seri:(R.serPrint??0.45)*1.21,serNet:R.serPrint??0.45,cliche:R.serCliche??38,serMin:R.serMin??100});
 }
 applyRates();
 /* Catálogo: cambios de precio, prendas desactivadas y prendas nuevas */
@@ -1484,7 +1484,7 @@ function seriPanel(el){
   const q=Object.values(qtyBySize()).reduce((a,b)=>a+(+b||0),0), dark=lumHex(COLORS[S.color][1])<128;
   return `<div class="label">Color de la tinta · ${esc(vinyl(el.recolor||"V-01")[1])}</div>
     <div class="swatches">${INKS().map(v=>`<button class="sw sq" type="button" data-srec="${v[0]}" data-id="${el.id}" aria-pressed="${el.recolor===v[0]}" title="${v[1]}" aria-label="Tinta ${v[1]}" style="background:${v[2]}"></button>`).join("")}</div>
-    <div class="note">Serigrafía: ideal para tiradas largas (desde ${DECO.serMin} ud) y diseños de <b>un solo color</b>. ${eur(DECO.seri)}/ud de estampación + <b>clichés ${eur(DECO.cliche)} + IVA</b> por logo (pago único por pedido).</div>
+    <div class="note">Serigrafía: ideal para tiradas largas (desde ${DECO.serMin} ud) y diseños de <b>un solo color</b>. ${eur(DECO.serNet)} + IVA/ud de estampación (${eur(r2(DECO.seri))} con IVA) + <b>clichés ${eur(DECO.cliche)} + IVA</b> por logo (pago único por pedido).</div>
     ${q<DECO.serMin?`<div class="note warn">Llevas ${q} ud. La serigrafía necesita un mínimo de ${DECO.serMin} ud: para menos, usa DTF o vinilo.</div>`:""}
     ${dark?`<div class="note warn">Prenda oscura: la serigrafía necesita varias pasadas (base blanca) y no la recomendamos. Mejor en prendas claras, o usa DTF o vinilo.</div>`:""}`;
 }
@@ -3631,8 +3631,8 @@ function admRates(){
           <button class="x" type="button" data-tdel="${i}" aria-label="Quitar tramo" style="align-self:flex-end" ${i===0?"disabled":""}>×</button></div>`).join("")}</div>
         <button class="btn" type="button" id="tierAdd" style="align-self:flex-start">+ Añadir tramo</button></div>
       <div class="rategroup"><h3>Tallas y envío</h3><p>Suplementos y portes</p><div class="formgrid">${inp("big",R.big,"Suplemento 2XL/3XL")}${inp("shipping",R.shipping,"Envío")}${inp("freeShip",R.freeShip,"Envío gratis desde")}</div></div>
-      <div class="rategroup"><h3>Serigrafía a un color</h3><p>Para tiradas largas. Los clichés se cobran una vez por logo y pedido (precio sin IVA).</p><div class="formgrid">
-        <label class="field"><span>Estampación por unidad (€)</span><input type="number" step="0.01" min="0" data-rate="serPrint" value="${R.serPrint??0.45}"></label>
+      <div class="rategroup"><h3>Serigrafía a un color</h3><p>Para tiradas largas. Precios sin IVA (la web suma el 21 %). Los clichés se cobran una vez por logo y pedido.</p><div class="formgrid">
+        <label class="field"><span>Estampación por unidad, sin IVA (€)</span><input type="number" step="0.01" min="0" data-rate="serPrint" value="${R.serPrint??0.45}"></label>
         <label class="field"><span>Cliché por logo, sin IVA (€)</span><input type="number" step="0.01" min="0" data-rate="serCliche" value="${R.serCliche??38}"></label>
         <label class="field"><span>Mínimo de unidades</span><input type="number" step="1" min="1" data-rate="serMin" value="${R.serMin??100}"></label></div></div>
       <div class="rategroup"><h3>Plazos de producción</h3><p>Días laborables desde la revisión del archivo. Se usan para la fecha que ve el cliente.</p><div class="formgrid">
