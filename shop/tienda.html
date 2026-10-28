@@ -1151,7 +1151,7 @@ function cardHTML(p){
     ${p.tag?`<span class="tag">${esc(p.tag)}</span>`:""}<span class="go">Personalizar</span></div>
     <div class="meta"><span class="n">${esc(p.name)}${p.ref?` <small class="mono" style="color:var(--muted);font-weight:400">${esc(p.ref)}</small>`:""}</span><span class="p">${eur(p.price)}</span></div>
     <span class="cprice">Prenda sin estampar · ${(()=>{const t=TIERS[TIERS.length-1];return t&&t[1]>0?`desde ${eur(p.price*(1-t[1]))} a partir de ${t[0]} ud`:"precio por unidad"})()}</span>
-    ${p.desc?`<span class="cdesc">${esc(p.desc.split(/[.]/)[0].slice(0,70))}</span>`:""}
+    ${p.desc?`<span class="cdesc">${esc(p.desc.split(/[.]/)[0].slice(0,70))}</span>`:""}${p.minQty>1?`<span class="cdesc"><b>Mínimo ${p.minQty} ud</b></span>`:""}
     <div class="row" style="justify-content:space-between"><div class="dots">${dots}</div><span class="iva">IVA incl.</span></div></button>`;
 }
 function tileArt(k,ink){
@@ -1445,7 +1445,7 @@ function renderColors(){
   $("#colorName").textContent=colorLabel(S.color);
   $("#pName").textContent=S.product.name;
   const tech="DTF a todo color, vinilo o serigrafía a un color";
-  $("#pMeta").innerHTML=`<span class="note">Prenda: <b class="mono">${eur(S.product.price)}</b>/ud · ${tech} · 2XL y 3XL +${eur(BIG_SURCHARGE)}</span>`;
+  $("#pMeta").innerHTML=`<span class="note">Prenda: <b class="mono">${eur(S.product.price)}</b>/ud · ${tech} · 2XL y 3XL +${eur(BIG_SURCHARGE)}${S.product.minQty>1?` · <b>pedido mínimo ${S.product.minQty} ud</b>`:""}</span>`;
 }
 $("#gColors").addEventListener("click",e=>{const b=e.target.closest("[data-c]");if(!b)return;S.color=b.dataset.c;renderColors();renderEls();renderCats();renderGallery()});
 
@@ -1722,6 +1722,7 @@ function problems(Q){
   if(S.team.on&&(S.team.numB||S.team.numF)&&S.team.rows.some(r=>!r.num))p.push("Falta el número en alguna fila.");
   if(S.team.on&&S.team.name&&S.team.rows.some(r=>!r.name))p.push("Falta el nombre en alguna fila (o desmarca «Nombre»).");
   if(S.els.some(e=>e.kind==="text"&&!e.text.trim()))p.push("Hay un texto vacío.");
+  if(S.product.minQty>1&&Q.qty&&Q.qty<S.product.minQty)p.push(`Esta prenda tiene un pedido mínimo de ${S.product.minQty} unidades (llevas ${Q.qty}).`);
   if(seriCount(S.els)&&Q.qty<DECO.serMin)p.push(`La serigrafía es a partir de ${DECO.serMin} ud (llevas ${Q.qty}). Para menos, cambia el logo a DTF o vinilo.`);
   return p;
 }
@@ -2224,7 +2225,7 @@ function cprodHTML(cp){
       ${hasBack?`<div class="seg" role="group" aria-label="Vista"><button type="button" data-aside="front" data-cp="${cp.id}" aria-pressed="${side==="front"}">Delante</button><button type="button" data-aside="back" data-cp="${cp.id}" aria-pressed="${side==="back"}">Detrás</button></div>`:""}</div>
     <div style="min-width:0">
       <h3>${esc(cp.label)}</h3>${cp.fromQuote?`<span class="tag-ex" style="color:var(--accent);border-color:var(--accent)">Presupuesto ${esc(cp.fromQuote)}</span>`:""}
-      <div class="spec">${esc(pr.name)} · ${colorLabel(cp.color)}<br>${esc(specText(cp))}</div>
+      <div class="spec">${esc(pr.name)} · ${colorLabel(cp.color)}<br>${esc(specText(cp))}${pr.minQty>1?`<br><b>Pedido mínimo: ${pr.minQty} ud</b>`:""}</div>
       ${sizeGridHTML(pr,cell)}
     </div>
     <div class="side"><div><span class="pp">${eur(cp.price)}</span><br><small>precio acordado / ud</small>${IS_ADMIN&&CUR?`<br><button class="linkbtn" type="button" data-cpedit="${CUR.code}|${cp.id}">Editar diseño</button>`:""}</div><span class="lt" data-lt="${cp.id}">${cpQty(cp.id)?cpQty(cp.id)+" ud · "+eur(cpTotal(cp)):"—"}</span></div>
@@ -2256,6 +2257,8 @@ $("#area").addEventListener("input",e=>{const t=e.target;if(!t.dataset.cp)return
   const cp=CUR.c.products.find(p=>p.id===t.dataset.cp);$(`[data-lt="${cp.id}"]`).textContent=cpQty(cp.id)?cpQty(cp.id)+" ud · "+eur(cpTotal(cp)):"—";updateAbar()});
 document.addEventListener("click",e=>{
   if(!e.target.closest("#aAdd")||!CUR)return;
+  const short=CUR.c.products.filter(cp=>{const n=cpQty(cp.id),pr=PRODUCTS.find(p=>p.id===cp.pid);return n&&pr&&pr.minQty>1&&n<pr.minQty});
+  if(short.length){alert(short.map(cp=>`«${cp.label}»: pedido mínimo ${PRODUCTS.find(p=>p.id===cp.pid).minQty} ud`).join("\n"));return}
   CUR.c.products.forEach(cp=>{const n=cpQty(cp.id);if(!n)return;const pr=PRODUCTS.find(p=>p.id===cp.pid);
     const sizes=Object.entries(AQ[cp.id]).filter(([,v])=>v).map(([k,v])=>`${v}×${k}`).join(" ");
     const cid="L"+Date.now()+cp.id;
@@ -3313,7 +3316,7 @@ const IMP_COLS={ref:["MODELCODE","REFERENCIA","MODELO"],name:["MODELNAME","NOMBR
   size:["SIZE","TALLA"],sizeCode:["SIZECODE","CODIGO TALLA"],color:["COLOR"],colorCode:["COLORCODE","CODIGO COLOR"],price:["PRICE UNIT","PRECIO","PRECIO UNIDAD"],
   img:["PRODUCTIMAGE","IMAGEN"],imgModel:["MODELIMAGE","IMAGEN MODELO"],gender:["GENDER","GENERO","GÉNERO"],novelty:["ISNOVELTY","NOVEDAD"],outlet:["ISOUTLET","OUTLET"],comp:["COMPOSITION","COMPOSICION","COMPOSICIÓN"],
   obs:["OBSERVATION","OBSERVACIONES"],pack:["UNITSPACK","UNIDADES PACK"],box:["UNITSBOX","UNIDADES CAJA"],taric:["TARIC_CODE","TARIC"],origin:["MADE_IN","ORIGEN"],
-  measures:["MEASURES","MEDIDAS"],wash:["WASHICONIMAGES","ICONOS LAVADO"]};
+  measures:["MEASURES","MEDIDAS"],wash:["WASHICONIMAGES","ICONOS LAVADO"],minQty:["MIN_ORDER_QTY","PEDIDO MINIMO","PEDIDO MÍNIMO","MINIMO"]};
 let IMP=null; // {rows, cols, models}
 const titleCase=t=>String(t||"").toLowerCase().replace(/(^|[\s\/(-])(\p{L})/gu,(m,a,b)=>a+b.toUpperCase());
 function loadSheetJS(){return new Promise((ok,ko)=>{if(window.XLSX)return ok();const sc=document.createElement("script");sc.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";sc.onload=ok;sc.onerror=()=>ko(new Error("No se ha podido cargar el lector de Excel."));document.head.appendChild(sc)})}
@@ -3360,7 +3363,7 @@ function buildImport(data,opt){
   rows.forEach(r=>{const ref=g(r,"ref");if(!ref)return;let m=models.get(ref);
     if(!m){m={ref,name:g(r,"name"),desc:g(r,"desc"),fam:g(r,"fam").toUpperCase(),cats:g(r,"cats").split(",").map(x=>x.trim()).filter(Boolean),comp:g(r,"comp"),gender:g(r,"gender"),
       colors:new Map(),sizes:new Map(),prices:{},cost:Infinity,novelty:false,outlet:false,img:{},imgModel:{},
-      obs:g(r,"obs"),pack:g(r,"pack"),box:g(r,"box"),taric:g(r,"taric"),origin:g(r,"origin"),wash:g(r,"wash"),measures:{}};models.set(ref,m)}
+      minQty:parseInt(g(r,"minQty"))||0,obs:g(r,"obs"),pack:g(r,"pack"),box:g(r,"box"),taric:g(r,"taric"),origin:g(r,"origin"),wash:g(r,"wash"),measures:{}};models.set(ref,m)}
     {const ms=g(r,"measures"),s0=g(r,"size");if(ms&&s0&&!m.measures[s0])m.measures[s0]=ms;}
     const cc=g(r,"colorCode")||g(r,"color");if(cc&&!m.colors.has(cc))m.colors.set(cc,g(r,"color"));
     const sz=g(r,"size");if(sz&&!m.sizes.has(sz))m.sizes.set(sz,g(r,"sizeCode"));
@@ -3459,7 +3462,7 @@ function applyImport(){
     const data={cat:keyOf[m.tops[0]],cats:m.tops.map(t=>keyOf[t]),subs:m.subs,name:titleCase(m.name),ref:m.ref,desc:m.desc,comp:m.comp,shape:m.shape,price:m.sale,cost:m.cost<Infinity?m.cost:null,
       colors:[...m.colors.keys()],sizeList:m.sizes.map(x=>x[0]),sizes:[...new Set(m.sizes.map(([sz,code])=>sizeGroupFor(code,sz)[0]))],
       info:fichaFrom(m),
-      sport:m.tops.includes("Sport collection"),tag:m.novelty?"Novedad":m.outlet?"Outlet":"",featured:m.novelty,remote:m.img,remoteModel:m.imgModel,off:!m.sale,supplier:m.cats.some(c=>/^roly/i.test(c))?"Roly":"Excel"};
+      minQty:m.minQty>1?m.minQty:0,sport:m.tops.includes("Sport collection"),tag:m.novelty?"Novedad":m.outlet?"Outlet":"",featured:m.novelty,remote:m.img,remoteModel:m.imgModel,off:!m.sale,supplier:m.cats.some(c=>/^roly/i.test(c))?"Roly":"Excel"};
     const ex=prodById(id);
     if(ex){setProd(ex,data);updated++}else{const p={id,...data};PRODUCTS.push(p);CATALOG_X.__new=[...(CATALOG_X.__new||[]),p];added++}});
   const ok=saveCatalog();
@@ -3559,7 +3562,8 @@ function prodForm(p){
         <label class="field"><span>Fabricado en</span><input type="text" id="npOrigin" value="${p&&p.info&&p.info.origin?esc(p.info.origin):""}"></label>
         <label class="field" style="grid-column:1/-1"><span>Observaciones (una por línea)</span><textarea id="npObs" rows="4" placeholder="Tejido transpirable&#10;Etiqueta removible">${p&&p.info&&p.info.obs?esc(p.info.obs.join("\n")):""}</textarea></label>
       </div></details>
-    <div class="formgrid"><label class="field"><span>Etiqueta en la tarjeta (opcional)</span><input type="text" id="npTag" maxlength="20" value="${p&&p.tag?esc(p.tag):""}" placeholder="Más pedida, Novedad…"></label></div>
+    <div class="formgrid"><label class="field"><span>Pedido mínimo (unidades)</span><input type="number" min="0" step="1" id="npMin" value="${p&&p.minQty>1?p.minQty:""}" placeholder="Sin mínimo"></label>
+      <label class="field"><span>Etiqueta en la tarjeta (opcional)</span><input type="text" id="npTag" maxlength="20" value="${p&&p.tag?esc(p.tag):""}" placeholder="Más pedida, Novedad…"></label></div>
     <div class="checks"><label><input type="checkbox" id="npSport"${p&&p.sport?" checked":""}> Admite nombres y números</label><label><input type="checkbox" id="npFeat"${p&&(p.featured||(p.featured==null&&p.tag))?" checked":""}> Sale en «Lo más pedido» de la home</label></div>
     <div class="err" id="npErr" style="color:var(--danger);font-size:14px"></div>
     <div class="row"><button class="btn primary" type="submit">${p?"Guardar cambios":"Añadir al catálogo"}</button><button class="btn" type="button" data-npclose>Cancelar</button></div>
@@ -3838,7 +3842,7 @@ $("#admin").addEventListener("submit",e=>{
       groups=[...document.querySelectorAll(".npG:checked")].map(x=>x.value),err=[];
     if(!name)err.push("Pon nombre a la prenda.");if(!(price>0))err.push("Indica el precio de venta.");if(!colors.length)err.push("Marca al menos un color.");if(!groups.length)err.push("Marca al menos un grupo de tallas.");
     if(err.length){$("#npErr").innerHTML=err.map(esc).join("<br>");return}
-    const data={cat:$("#npCat").value,name,shape:$("#npShape").value,price,colors,sizes:groups,sport:$("#npSport").checked,tag:$("#npTag").value.trim(),featured:$("#npFeat").checked};
+    const data={minQty:Math.max(0,parseInt($("#npMin").value)||0),cat:$("#npCat").value,name,shape:$("#npShape").value,price,colors,sizes:groups,sport:$("#npSport").checked,tag:$("#npTag").value.trim(),featured:$("#npFeat").checked};
     {const old=(e.target.dataset.edit&&prodById(e.target.dataset.edit)||{}).info||{}, comp=$("#npComp").value.trim();
      data.desc=$("#npDesc").value.trim();
      data.info={...old,comp,gsm:(comp.match(/(\d{2,3})\s*g\/m/)||[])[1]||"",pack:+$("#npPack").value||0,box:+$("#npBox").value||0,taric:$("#npTaric").value.trim(),origin:$("#npOrigin").value.trim(),

@@ -21,7 +21,7 @@ export async function POST(req) {
   const ship = c.ship === "envio" ? "envio" : "tienda";
   let price = { lines: [], subtotal: 0 };
   if (cpItems.length) {
-    try { price = priceCart(kv, cpItems, { clientKey, ship: "tienda" }); }
+    try { price = priceCart(kv, cpItems, { clientKey, ship: "tienda", ignoreMin: true }); }
     catch (e) { if (e instanceof PriceError) return fail(e.message, 422); throw e; }
   }
   const byLine = new Map(price.lines.map((l) => [l.id, l]));

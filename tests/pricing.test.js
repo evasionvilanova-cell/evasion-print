@@ -27,3 +27,11 @@ test("serigrafía: 0,45 €/ud + clichés 38 € + IVA y mínimo de 100 ud", () 
   assert.equal(r.lines[0].total, 641.54);
   assert.throws(() => priceCart({}, it(50), { ship: "tienda" }), /100 unidades/);
 });
+
+test("pedido mínimo de la prenda", () => {
+  const kv = { ep_catalog: { "cam-algodon": { minQty: 25 } } };
+  const it = (n) => [{ id: "m", pid: "cam-algodon", name: "T", q: { M: n }, total: 0, design: { els: [] } }];
+  assert.throws(() => priceCart(kv, it(10), { ship: "tienda" }), /mínimo de 25/);
+  assert.equal(priceCart(kv, it(25), { ship: "tienda" }).lines[0].qty, 25);
+  assert.equal(priceCart(kv, it(10), { ship: "tienda", ignoreMin: true }).lines[0].qty, 10);
+});
