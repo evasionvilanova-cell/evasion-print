@@ -453,6 +453,10 @@ form.step>.field,#addrBox>.field,#addrBox>.row{flex:none}
 .csearch{display:flex;flex-direction:column;gap:6px}.cpick{grid-template-columns:repeat(auto-fill,minmax(124px,1fr))}.cpick label{display:grid;grid-template-columns:18px minmax(0,1fr);column-gap:6px;align-items:center}
 .cpick label i{grid-row:span 2}.cpick label small{max-width:none}.cpick label[hidden]{display:none}.cpick label small{font-size:10px;color:var(--muted);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .duo{display:flex;flex-direction:column;align-items:center;gap:2px}.duo input[type=color]{width:34px;height:26px;padding:0}.duo .linkbtn{font-size:11px}
+.sgroups{display:flex;flex-direction:column;gap:8px}.sgroup{border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:6px}
+.sgroup:not(.on) .szchips{opacity:.4}.szchips{display:flex;flex-wrap:wrap;gap:4px}.szchips label{cursor:pointer}.szchips input{position:absolute;opacity:0;pointer-events:none}
+.szchips span{display:inline-block;padding:3px 8px;border:1px solid var(--line);border-radius:6px;font:12px var(--f-mono);background:var(--surface)}
+.szchips input:checked+span{border-color:var(--ink);background:var(--ink);color:#fff}.szchips input:focus-visible+span{outline:2px solid var(--accent)}
 .supviews{display:flex;gap:8px;flex-wrap:wrap}.supviews figure{margin:0;width:96px;font-size:11px;text-align:center}.supviews img{width:96px;height:106px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:6px}
 .fwash{display:flex;gap:8px;flex-wrap:wrap}.fwash img{width:30px;height:30px;object-fit:contain}
 
@@ -3294,6 +3298,7 @@ document.addEventListener("click",e=>{
     $(".cpick").insertAdjacentHTML("beforeend",cpickHTML(code,nm,hex,true));npCount();cn.outerHTML=`<span class="mono">✓ creado ${esc(code)}</span>`}
 });
 
+document.addEventListener("change",e=>{if(!e.target.classList.contains("npG"))return;const g=e.target.closest(".sgroup");if(g)g.classList.toggle("on",e.target.checked)});
 document.addEventListener("click",e=>{const b=e.target.closest("[data-cduo]");if(!b)return;const i=+b.dataset.cduo,x=PALETTE[i];
   if(COLORS[x[0]][2])PALETTE[i]=[x[0],x[1],x[2],""];else{const parts=String(x[1]).split("/");const known=PALETTE.map(([c,n,h])=>[String(n).toUpperCase(),h]).sort((a,b)=>b[0].length-a[0].length);
     PALETTE[i]=[x[0],x[1],x[2],parts[1]?guessHex(parts[1].trim(),known):"#111111"]}
@@ -3565,7 +3570,9 @@ function prodForm(p){
       <div id="npCRes"></div></div>
     <div class="cpick">${PALETTE.map(([c,n,h])=>cpickHTML(c,n,h,sel.includes(c))).join("")}</div>
     <div class="label">Tallas</div>
-    <div class="checks">${SIZE_GROUPS.map(g=>`<label><input type="checkbox" class="npG" value="${esc(g.id)}"${grp.includes(g.id)?" checked":""}> ${esc(g.label)} <small class="dim">(${g.sizes.map(esc).join(" ")})</small></label>`).join("")}</div>
+    <div class="dim" style="font-size:13px;margin-top:-6px">Marca el grupo y deja marcadas solo las tallas que tiene esta prenda.</div>
+    <div class="sgroups">${SIZE_GROUPS.map(g=>{const on=grp.includes(g.id);return `<div class="sgroup${on?" on":""}"><label class="toggle"><input type="checkbox" class="npG" value="${esc(g.id)}"${on?" checked":""}> <b>${esc(g.label)}</b></label>
+      <div class="szchips">${g.sizes.map(z=>`<label><input type="checkbox" class="npS" data-g="${esc(g.id)}" value="${esc(z)}"${!p||!p.sizeList||p.sizeList.includes(z)?" checked":""}><span>${esc(z)}</span></label>`).join("")}</div></div>`}).join("")}</div>
     <details class="ficha-ed"${p&&p.info?" open":""}><summary class="label" style="cursor:pointer">Ficha técnica (se ve en la web, debajo del precio)</summary>
       <div class="formgrid" style="margin-top:8px">
         <label class="field" style="grid-column:1/-1"><span>Descripción</span><textarea id="npDesc" rows="2">${p&&p.desc?esc(p.desc):""}</textarea></label>
@@ -3856,7 +3863,10 @@ $("#admin").addEventListener("submit",e=>{
       groups=[...document.querySelectorAll(".npG:checked")].map(x=>x.value),err=[];
     if(!name)err.push("Pon nombre a la prenda.");if(!(price>0))err.push("Indica el precio de venta.");if(!colors.length)err.push("Marca al menos un color.");if(!groups.length)err.push("Marca al menos un grupo de tallas.");
     if(err.length){$("#npErr").innerHTML=err.map(esc).join("<br>");return}
-    const data={minQty:Math.max(0,parseInt($("#npMin").value)||0),cat:$("#npCat").value,name,shape:$("#npShape").value,price,colors,sizes:groups,sport:$("#npSport").checked,tag:$("#npTag").value.trim(),featured:$("#npFeat").checked};
+    const pickedS=[...document.querySelectorAll(".npS:checked")].filter(x=>groups.includes(x.dataset.g)).map(x=>x.value);
+    const allS=SIZE_GROUPS.filter(g=>groups.includes(g.id)).flatMap(g=>g.sizes);
+    if(groups.length&&!pickedS.length){$("#npErr").textContent="Deja marcada al menos una talla.";return}
+    const data={sizeList:pickedS.length===allS.length?null:pickedS,minQty:Math.max(0,parseInt($("#npMin").value)||0),cat:$("#npCat").value,name,shape:$("#npShape").value,price,colors,sizes:groups,sport:$("#npSport").checked,tag:$("#npTag").value.trim(),featured:$("#npFeat").checked};
     {const old=(e.target.dataset.edit&&prodById(e.target.dataset.edit)||{}).info||{}, comp=$("#npComp").value.trim();
      data.desc=$("#npDesc").value.trim();
      data.info={...old,comp,gsm:(comp.match(/(\d{2,3})\s*g\/m/)||[])[1]||"",pack:+$("#npPack").value||0,box:+$("#npBox").value||0,taric:$("#npTaric").value.trim(),origin:$("#npOrigin").value.trim(),
