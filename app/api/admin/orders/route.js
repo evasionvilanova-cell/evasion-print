@@ -5,7 +5,8 @@ import { json, fail, body } from "@/lib/http";
 
 export async function POST(req) {
   if (!(await requireAdmin())) return fail("Inicia sesión en Gestión.", 401);
-  const { ref, patch } = await body(req, 4_400_000).catch(() => ({}));
+  const { ref, patch, paid } = await body(req, 4_400_000).catch(() => ({}));
+  if (ref && paid === true) await q("update orders set paid=true, paid_at=now() where ref=$1 and pay='transfer'", [ref]);
   if (!ref || !patch || typeof patch !== "object") return fail("Faltan datos.");
   const r = await q("update orders set state = state || $2::jsonb where ref=$1 returning ref", [ref, JSON.stringify(patch)]);
   if (!r.rowCount) return fail("No encuentro ese pedido.", 404);

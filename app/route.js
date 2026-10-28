@@ -25,7 +25,7 @@ export async function GET() {
     boot.adminEmail = session.email;
     if (kv.ep_clients) boot.kv.ep_clients = stripUsers(kv.ep_clients);
     if (kv.ep_admin) boot.kv.ep_admin = stripUsers(kv.ep_admin);
-    const o = await q("select ref,status,paid,total,pay,data,state,created_at from orders where paid order by created_at desc limit 2000");
+    const o = await q("select ref,status,paid,total,pay,data,state,created_at from orders where paid or pay='transfer' order by created_at desc limit 2000");
     boot.orders = o.rows.map(orderForShop);
     o.rows.forEach((r) => { if (r.state && Object.keys(r.state).length) boot.ostate[r.ref] = r.state; });
     const qs = await q("select data from quotes order by created_at desc limit 1000");

@@ -5,6 +5,7 @@ import { json, fail, body, siteUrl } from "@/lib/http";
 import { loadKv, priceCart, PriceError } from "@/lib/shop";
 import { buildPayment, redsysConfig } from "@/lib/redsys";
 import { orderToken, etaFrom, markPaidSimulated } from "@/lib/orders";
+import { mailOrderTransfer } from "@/lib/mail";
 
 const str = (v, n = 300) => String(v ?? "").trim().slice(0, n);
 
@@ -20,7 +21,7 @@ export async function POST(req) {
   if (str(c.tel).replace(/\D/g, "").length < 9) err.push("Escribe un teléfono de 9 cifras.");
   if (!["tienda", "envio"].includes(c.ship)) err.push("Elige recogida o envío.");
   if (c.ship === "envio" && str(c.addr).length < 8) err.push("Completa la dirección de envío.");
-  if (!["card", "bizum"].includes(c.pay)) err.push("Elige cómo pagar.");
+  if (!["card", "bizum", "transfer"].includes(c.pay)) err.push("Elige cómo pagar.");
   if (err.length) return fail(err.join(" "));
 
   const s = await getSession().catch(() => null);
@@ -33,9 +34,12 @@ export async function POST(req) {
     return json({ error: "Hemos actualizado algún precio desde que lo añadiste al carrito. Revisa el total y vuelve a pulsar Pagar.", lines: price.lines, total: price.total }, 409);
   }
 
+  // Transferencia: solo para clientes con la opción activada en Gestión
+  const transfer = c.pay === "transfer";
+  if (transfer && !(clientKey && (kv.ep_clients || {})[clientKey]?.transfer)) return fail("El pago por transferencia no está disponible para esta cuenta.", 403);
   const cfg = redsysConfig();
-  const simulated = !cfg && process.env.SIMULATED_PAY === "on";
-  if (!cfg && !simulated) return fail("El pago con tarjeta aún no está activado. Escríbenos a info@evasionprint.com o por WhatsApp al 696 356 962.", 503);
+  const simulated = !transfer && !cfg && process.env.SIMULATED_PAY === "on";
+  if (!transfer && !cfg && !simulated) return fail("El pago con tarjeta aún no está activado. Escríbenos a info@evasionprint.com o por WhatsApp al 696 356 962.", 503);
 
   const yy = String(new Date().getFullYear()).slice(2);
   const seq = (await q("select nextval('order_seq')::int n")).rows[0].n;
@@ -55,8 +59,13 @@ export async function POST(req) {
   await q(
     `insert into orders(ref,seq,status,total,email,client,pay,redsys_order,redsys_attempts,data,price_check)
      values($1,$2,'pendiente_pago',$3,$4,$5,$6,$7,1,$8,$9)`,
-    [ref, seq, price.total, order.email, clientKey, c.pay, simulated ? null : redsysOrder, JSON.stringify(order), JSON.stringify(price)]
+    [ref, seq, price.total, order.email, clientKey, c.pay, simulated || transfer ? null : redsysOrder, JSON.stringify(order), JSON.stringify(price)]
   );
+  if (transfer) {
+    await q("update orders set status='nuevo' where ref=$1", [ref]);
+    await mailOrderTransfer(order, kv.ep_rates || {}).catch((e) => console.error(e));
+    return json({ ref, token: orderToken(ref), transfer: true, total: price.total });
+  }
   const t = orderToken(ref);
   const site = siteUrl(req);
   if (simulated) {

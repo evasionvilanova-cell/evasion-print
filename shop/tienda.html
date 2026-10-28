@@ -1777,7 +1777,8 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape"){$("#drawerRoot").in
 /* ============ CHECKOUT ============ */
 const CO={ship:"tienda",pay:"card",invoice:false};
 function shipCost(){return CO.ship==="tienda"?0:(cartTotal()>=FREE_SHIP?0:SHIPPING)}
-function openCheckout(){
+function canTransfer(){if(!SESSION)return false;const c=allClients()[SESSION.key];return !!(c&&c.transfer)}
+function openCheckout(){if(CO.pay==="transfer"&&!canTransfer())CO.pay="card";
   const maxDays=Math.max(...cart.map(i=>i.days)), eta=etaFrom(maxDays+(CO.ship==="envio"?1:0));
   $("#sheetRoot").innerHTML=`<div class="sheet" role="dialog" aria-label="Finalizar pedido"><div class="wrap">
    <div class="row" style="justify-content:space-between"><button class="btn" type="button" data-back>← Volver</button>${BOOT.pay.env==="test"?`<span class="demo">Pasarela en modo pruebas: usa una tarjeta de prueba</span>`:BOOT.pay.env==="simulado"?`<span class="demo">Pago simulado: no se cobra nada</span>`:`<span class="dim" style="font-size:13px">🔒 Pago seguro con tu banco (Redsys)</span>`}</div>
@@ -1801,6 +1802,7 @@ function openCheckout(){
       </section>
       <section class="step"><div class="step-h"><span class="num">03</span><h3>Pago</h3></div>
         <label class="opt"><input type="radio" name="pay" value="card"${CO.pay==="card"?" checked":""}><span><b>Tarjeta de crédito o débito</b><small>Pago seguro en la pasarela de nuestro banco (Redsys). Nunca vemos los datos de tu tarjeta.</small></span></label>
+        ${canTransfer()?`<label class="opt"><input type="radio" name="pay" value="transfer"${CO.pay==="transfer"?" checked":""}><span><b>Transferencia bancaria</b><small>Opción de tu área de cliente. Hacemos el pedido ya y te enviamos los datos para pagar; indica en el concepto el número de pedido.</small></span></label>`:""}
         ${BOOT.pay.bizum?"":"<!--"}<label class="opt"><input type="radio" name="pay" value="bizum"${CO.pay==="bizum"?" checked":""}><span><b>Bizum</b><small>Confirmas el pago desde la app de tu banco.</small></span></label>${BOOT.pay.bizum?"":"-->"}
         <label class="toggle" style="font-weight:500;font-size:14px;align-items:flex-start"><input type="checkbox" id="coTerms" required> Acepto las condiciones. Entiendo que las prendas personalizadas no admiten devolución salvo defecto de producción.</label>
       </section>
@@ -1858,7 +1860,7 @@ $("#sheetRoot").addEventListener("submit",async e=>{
     try{res=await api("/api/checkout",{customer:{name:v("coName"),email:v("coEmail"),tel:v("coTel"),company:CO.invoice?v("coCo"):"",cif:CO.invoice?v("coCif"):"",ship:CO.ship,addr,pay:CO.pay},items:cart.map(i=>({...i,logos:undefined}))})}
     catch(e){if(e.status===409&&e.data&&e.data.lines){e.data.lines.forEach(l=>{const it=cart.find(x=>x.id===l.id);if(it){it.total=l.total;it.days=l.days}});saveCart();keepAndReopen()}throw e}
     try{sessionStorage.setItem("ep_last",JSON.stringify({ref:res.ref,t:res.token,name:v("coName").split(" ")[0],email:v("coEmail"),pay:CO.pay,ship:CO.ship}))}catch(x){}
-    if(res.simulated){location.href=`/?pedido=${encodeURIComponent(res.ref)}&t=${res.token}`;return}
+    if(res.simulated||res.transfer){location.href=`/?pedido=${encodeURIComponent(res.ref)}&t=${res.token}`;return}
     // 3) ir a la pasarela de Redsys
     const f=document.createElement("form");f.method="POST";f.action=res.redsys.url;
     Object.entries(res.redsys.fields).forEach(([k,val])=>{const i=document.createElement("input");i.type="hidden";i.name=k;i.value=val;f.appendChild(i)});
@@ -1871,6 +1873,17 @@ async function paymentReturn(){
   const ko=u.searchParams.get("pago")==="ko";
   let o=null; try{o=await api(`/api/order?${u.searchParams.toString().replace(/^/,"ref="+encodeURIComponent(ref)+"&")}`,undefined,{method:"GET"})}catch(e){}
   history.replaceState(null,"","/"+location.hash);
+  if(o&&o.pay==="transfer"&&!ko){cart=[];saveCart();updateCount();const due=o.due?new Date(o.due):null;
+    $("#sheetRoot").innerHTML=`<div class="sheet"><div class="wrap"><div class="done">
+      <div class="label">Pedido ${esc(o.ref)}</div><h1>Gracias, ${esc(String(o.name||"").split(" ")[0])}. Pedido recibido.</h1>
+      <p style="margin:0;color:var(--muted)">Total ${eur(o.total)} · pago por transferencia</p>
+      <div class="step" style="max-width:560px"><div class="label">Datos para la transferencia</div>
+        <div><b>${esc(RATES.bankHolder||SHOP.owner)}</b></div><div class="mono cpy" style="font-size:16px">${esc(RATES.iban||"Te los enviamos por email")}</div>
+        <div>Concepto: <b class="mono">${esc(o.ref)}</b> · Importe: <b class="mono">${eur(o.total)}</b></div></div>
+      <ol class="timeline"><li class="ok"><b>Pedido recibido</b><small>Hoy</small></li>
+        <li><b>Revisión del archivo y producción</b><small>Empezamos ya; no hace falta esperar a la transferencia.</small></li>
+        <li><b>${o.ship==="tienda"?"Listo para recoger en tienda":"Enviado a tu dirección"}</b><small>${due?dateES(due):""}</small></li></ol>
+      <button class="btn primary big" type="button" data-home style="width:max-content">Volver a la tienda</button></div></div></div>`;return}
   if(ko||!o||!o.paid){
     // el banco aún puede estar avisando: esperar un poco antes de dar el pago por fallido
     if(!ko&&o&&!o.paid){for(let k=0;k<5&&!o.paid;k++){await new Promise(r=>setTimeout(r,1500));try{o=await api(`/api/order?ref=${encodeURIComponent(ref)}&t=${t}`,undefined,{method:"GET"})}catch(e){}}}
@@ -2363,7 +2376,7 @@ function admOrders(orders){
     </div>
     <div class="tbl"><table><thead><tr><th>Pedido</th><th>Fecha</th><th>Cliente</th><th>Ud</th><th>Total</th><th>Entrega</th><th>Compromiso</th><th>Estado</th></tr></thead><tbody>
     ${list.map(o=>{const units=o.items.reduce((a,i)=>a+i.qty,0), late=o.status!=="entregado"&&o.due.slice(0,10)<today;
-      return `<tr data-ref="${o.ref}"><td class="mono">${o.ref}</td><td>${dshort(o.date)}</td><td>${esc(o.company||o.name)}${o.by&&o.company?`<br><small style="color:var(--muted)">por ${esc(o.by)}</small>`:""}</td>
+      return `<tr data-ref="${o.ref}"><td class="mono">${o.ref}${o.pay==="transfer"&&!o.paid?`<br><span class="kindtag k-contacto">Transf. pendiente</span>`:""}</td><td>${dshort(o.date)}</td><td>${esc(o.company||o.name)}${o.by&&o.company?`<br><small style="color:var(--muted)">por ${esc(o.by)}</small>`:""}</td>
       <td class="mono">${units}</td><td class="mono">${eur(o.total)}</td><td>${o.ship==="tienda"?"Tienda":"Envío"}</td><td class="${late?"late":""}">${dshort(o.due)}</td><td><span class="st ${o.status}">${ST[o.status]}</span></td></tr>`}).join("")||`<tr><td colspan="8" style="color:var(--muted);padding:24px">No hay pedidos en esta vista.</td></tr>`}
     </tbody></table></div>
 `;
@@ -2504,7 +2517,8 @@ function orderSheet(ref){
         <div class="step"><div class="step-h"><h3>Entrega y pago</h3></div>
           <div>${o.ship==="tienda"?"Recogida en tienda":"Envío a: "+esc(o.addr||"")}</div>
           <div>Compromiso: <b>${dateES(new Date(o.due))}</b></div>
-          <div>Pagado con ${o.pay==="bizum"?"Bizum":"tarjeta"} · <b class="mono">${eur(o.total)}</b></div></div>
+          ${o.pay==="transfer"?`<div>Transferencia · <b class="mono">${eur(o.total)}</b> · ${o.paid?`<span class="st listo">Cobrada</span>`:`<span class="st incidencia">Pendiente de cobro</span> <button class="btn" type="button" data-paidref="${o.ref}" style="padding:3px 10px;font-size:13px">Marcar como cobrada</button>`}</div>`
+            :`<div>Pagado con ${o.pay==="bizum"?"Bizum":"tarjeta"} · <b class="mono">${eur(o.total)}</b></div>`}</div>
         ${(o.refunds||[]).length?`<div class="step"><div class="step-h"><h3>Devoluciones</h3></div>
           ${o.refunds.map(r=>`<div class="row" style="justify-content:space-between;gap:8px"><span style="flex:1;min-width:0">${esc(r.label)}<br><small class="dim">${dshort(r.date)} · ${r.done?"devuelto":"pendiente"}</small></span><b class="mono">−${eur(r.amount)}</b></div>`).join("")}
           <div class="row" style="justify-content:space-between;border-top:1px solid var(--line);padding-top:8px"><span>Total del pedido</span><b class="mono">${eur(r2(o.total-o.refunds.reduce((a,r)=>a+r.amount,0)))}</b></div>
@@ -2540,7 +2554,10 @@ function clientSheet(key){
         <div class="label" style="margin-top:10px">Pedidos</div>
         ${os.map(o=>`<button class="opt" type="button" data-ref="${o.ref}" style="text-align:left"><span><b class="mono">${o.ref}</b> · ${dshort(o.date)}${o.by?` · por ${esc(o.by)}`:""}</span><span class="pr"><span class="st ${o.status}">${ST[o.status]}</span> ${eur(o.total)}</span></button>`).join("")||`<span class="dim">Sin pedidos todavía.</span>`}
       </div>
-      <aside class="step"><div class="step-h"><h3>Usuarios con acceso</h3></div>
+      <aside class="step"><div class="step-h"><h3>Pago</h3></div>
+        <label class="toggle" style="font-weight:500"><input type="checkbox" data-cltransfer="${key}"${c.transfer?" checked":""}> Puede pagar por transferencia bancaria</label>
+        <span class="dim" style="font-size:13px">Si está marcado, le sale «Transferencia» al pagar cuando entra en su área.</span>
+        <div class="step-h" style="margin-top:12px"><h3>Usuarios con acceso</h3></div>
         ${(c.users||[]).map(u=>`<div><b>${esc(u.name)}</b>${u.role?` · ${esc(u.role)}`:""}<br><span class="cpy">${esc(u.email)}</span></div>`).join("")||`<span class="dim">Sin usuarios.</span>`}
         <form id="addUser" data-key="${key}" style="display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:12px" novalidate>
           <div class="label">Añadir usuario</div>
@@ -2553,6 +2570,11 @@ function clientSheet(key){
         </form></aside>
     </div></div></div>`;
 }
+document.addEventListener("click",e=>{const b=e.target.closest("[data-paidref]");if(!b)return;const ref=b.dataset.paidref;b.disabled=true;
+  api("/api/admin/orders",{ref,patch:{},paid:true}).then(()=>{const o=BOOT.orders.find(x=>x.ref===ref);if(o)o.paid=true;saved(true);orderSheet(ref)}).catch(x=>{b.disabled=false;saved(false,x.message)})});
+document.addEventListener("change",e=>{const t=e.target.closest("[data-cltransfer]");if(!t)return;const k=t.dataset.cltransfer,ex=loadExtra();
+  if(!ex[k]){const c=allClients()[k];ex[k]={name:c.name,type:c.type,crest:c.crest||"",contact:c.contact||"",users:[],products:[]}}
+  ex[k].transfer=t.checked;saveExtra(ex)});
 function newClientSheet(){
   $("#sheetRoot").innerHTML=`<div class="sheet" role="dialog" aria-label="Nuevo cliente"><div class="wrap" style="max-width:640px">
     <button class="btn" type="button" data-back>← Clientes</button>
@@ -2562,6 +2584,7 @@ function newClientSheet(){
       <div class="row"><label class="field"><span>Persona de contacto</span><input type="text" id="ncUser"></label><label class="field"><span>Email de acceso</span><input type="email" id="ncEmail"></label></div>
       <label class="field"><span>Contraseña provisional (mín. 8)</span><input type="text" id="ncPass" autocomplete="off"></label>
       <label class="field"><span>Escudo o logo (opcional)</span><input type="file" id="ncLogo" accept="image/png,image/jpeg,image/svg+xml,image/webp"></label>
+      <label class="toggle" style="font-weight:500"><input type="checkbox" id="ncTransfer"> Puede pagar por transferencia bancaria</label>
       <div class="err" id="ncErr" style="color:var(--danger);font-size:14px"></div>
       <button class="btn primary big" type="submit" style="justify-content:center">Crear cliente</button>
     </form></div></div>`;
@@ -3076,8 +3099,12 @@ function admRates(){
         <label class="field"><span>Plazo normal (días)</span><input type="number" step="1" min="1" data-rate="prodDays" value="${R.prodDays||3}"></label>
         <label class="field"><span>Pedido grande desde (ud)</span><input type="number" step="1" min="2" data-rate="bigQty" value="${R.bigQty||50}"></label>
         <label class="field"><span>Plazo pedido grande (días)</span><input type="number" step="1" min="1" data-rate="bigDays" value="${R.bigDays||5}"></label></div></div>
+      <div class="rategroup"><h3>Transferencia bancaria</h3><p>Solo para los clientes que tengan marcada la opción en su ficha. Se guarda al salir de la casilla.</p><div class="formgrid">
+        <label class="field"><span>Titular de la cuenta</span><input type="text" data-ratetext="bankHolder" value="${esc(R.bankHolder||"")}" placeholder="${esc(SHOP.owner)}"></label>
+        <label class="field"><span>IBAN</span><input type="text" data-ratetext="iban" value="${esc(R.iban||"")}" placeholder="ES00 0000 0000 0000 0000 0000"></label></div></div>
     </div>`;
 }
+document.addEventListener("change",e=>{const t=e.target.closest("[data-ratetext]");if(!t)return;RATES[t.dataset.ratetext]=t.value.trim();try{STORE.setItem("ep_rates",JSON.stringify(RATES))}catch(x){}});
 function readRateInputs(){
   document.querySelectorAll("[data-rate]").forEach(i=>{const [k,idx]=i.dataset.rate.split(".");const v=Math.max(0,parseFloat(i.value)||0);if(idx!=null)RATES[k][+idx]=v;else RATES[k]=v});
   const rows=[];document.querySelectorAll("[data-tmin]").forEach(i=>{const j=+i.dataset.tmin;rows[j]=[Math.max(1,parseInt(i.value)||1),Math.max(0,Math.min(60,parseFloat(document.querySelector(`[data-tpct="${j}"]`).value)||0))]});
@@ -3297,7 +3324,7 @@ $("#sheetRoot").addEventListener("submit",e=>{
     if(!name)err.push("Escribe el nombre del cliente.");if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em))err.push("Revisa el email de acceso.");else if(findUser(em))err.push("Ese email ya tiene acceso.");if(pw.length<8)err.push("Contraseña de al menos 8 caracteres.");
     if(err.length){$("#ncErr").innerHTML=err.map(esc).join("<br>");return}
     const key=(name.normalize("NFD").replace(/[̀-ͯ]/g,"").toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,10)||"CLIENTE")+Math.floor(10+Math.random()*90);
-    const finish=crest=>{const ex=loadExtra();ex[key]={name,type:$("#ncType").value.trim()||"Cliente",crest:crest||"",contact:"",users:[{email:em,name:un||name,role:"Responsable",pass:pw}],products:[]};saveExtra(ex);clientSheet(key)};
+    const finish=crest=>{const ex=loadExtra();ex[key]={name,type:$("#ncType").value.trim()||"Cliente",crest:crest||"",contact:"",transfer:$("#ncTransfer").checked,users:[{email:em,name:un||name,role:"Responsable",pass:pw}],products:[]};saveExtra(ex);clientSheet(key)};
     const f=$("#ncLogo").files[0];if(f){const r=new FileReader();r.onload=()=>finish(r.result);r.readAsDataURL(f)}else finish("");}
 },true);
 
