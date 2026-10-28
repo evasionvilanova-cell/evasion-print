@@ -426,12 +426,18 @@ form.step>.field,#addrBox>.field,#addrBox>.row{flex:none}
 .pgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start}.pcol{display:flex;flex-direction:column;gap:14px}.pcol>*{margin:0}
 @media (max-width:980px){.pgrid{grid-template-columns:1fr}}
 .pgrid form.step{display:flex;flex-direction:column;gap:10px}
-.frow{display:grid;grid-template-columns:minmax(0,2.2fr) minmax(0,1.2fr) 70px 90px 84px 28px;gap:6px;align-items:center}
+.frow{display:grid;grid-template-columns:minmax(0,2.2fr) minmax(0,1.2fr) 64px 84px 84px 84px 28px;gap:6px;align-items:center}
 .frow>span{font-size:14px;min-width:0}.oelines{display:flex;flex-direction:column;gap:6px}
 @media (max-width:700px){.frow{grid-template-columns:1fr 1fr;}.frow>span{grid-column:1/-1}}
 .mocp{border:1px solid var(--line);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:8px;background:var(--surface)}
 .qlines{width:100%;border-collapse:collapse;margin-top:10px;font-size:14px}.qlines td{padding:5px 0;border-bottom:1px solid var(--line)}
 .st.cancelado{background:#eceef1;color:#6b7078}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:2px}
+.kpi b{font-family:'Instrument Serif',Georgia,serif;font-weight:400;font-size:32px}.kpi span{font-size:13px;color:var(--muted)}
+.pfgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:14px;margin-top:14px;align-items:start}@media (max-width:900px){.pfgrid{grid-template-columns:1fr}}
+.pfbars{display:flex;flex-direction:column;gap:8px}.pfbars>div{display:grid;grid-template-columns:130px 1fr 90px;gap:8px;align-items:center;font-size:14px}
+.pfbars .bar{height:10px;background:var(--surface-2);border-radius:5px;overflow:hidden}.pfbars .bar i{display:block;height:100%;background:var(--ink)}.pfbars b{text-align:right}
+.pfmini{display:grid;grid-template-columns:1fr auto;gap:4px 10px;font-size:14px}.pfmini>:nth-child(even){text-align:right}
 .supviews{display:flex;gap:8px;flex-wrap:wrap}.supviews figure{margin:0;width:96px;font-size:11px;text-align:center}.supviews img{width:96px;height:106px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:6px}
 .fwash{display:flex;gap:8px;flex-wrap:wrap}.fwash img{width:30px;height:30px;object-fit:contain}
 
@@ -2498,12 +2504,12 @@ function renderAdmin(id){
   const tab=id.startsWith("admin-")?id.slice(6):"pedidos";
   const orders=loadOrders(), clients=allClients();
   const open=orders.filter(o=>o.status!=="entregado").length;
-  const nav=[["pedidos","Pedidos",open],["presupuestos","Presupuestos",loadQuotes().filter(q=>q.status==="nuevo").length],["clientes","Clientes",Object.keys(clients).length],["catalogo","Catálogo",PRODUCTS.filter(p=>!p.off).length],["atributos","Atributos",""],["tarifas","Tarifas",""]];
+  const nav=[["pedidos","Pedidos",open],["presupuestos","Presupuestos",loadQuotes().filter(q=>q.status==="nuevo").length],["clientes","Clientes",Object.keys(clients).length],["catalogo","Catálogo",PRODUCTS.filter(p=>!p.off).length],["atributos","Atributos",""],["tarifas","Tarifas",""],["rentabilidad","Rentabilidad",""]];
   root.innerHTML=`<div class="wrap adm">
     <nav class="adm-nav" aria-label="Gestión">${nav.map(([k,l,n])=>`<a href="#admin${k==="pedidos"?"":"-"+k}" aria-current="${tab===k?"page":"false"}">${l}<small>${n}</small></a>`).join("")}
       <div class="who">${esc(ADMIN.email)}<br><button class="btn ghost" type="button" id="admOut" style="margin-top:8px;padding:5px 10px;font-size:13px">Cerrar sesión</button></div></nav>
     <section id="admBody" style="min-width:0"></section></div>`;
-  ({pedidos:admOrders,presupuestos:admQuotes,clientes:admClients,catalogo:admCatalog,atributos:admAttrs,tarifas:admRates}[tab]||admOrders)(orders,clients);
+  ({pedidos:admOrders,presupuestos:admQuotes,clientes:admClients,catalogo:admCatalog,atributos:admAttrs,tarifas:admRates,rentabilidad:admProfit}[tab]||admOrders)(orders,clients);
 }
 function admOrders(orders){
   const by=k=>orders.filter(o=>o.status===k).length;
@@ -2662,6 +2668,10 @@ function orderSheet(ref){
           <div><b>${esc(o.company||o.name)}</b>${o.cif?` · <span class="mono">${esc(o.cif)}</span>`:""}${o.by?`<br><small style="color:var(--muted)">Pedido por ${esc(o.by)}</small>`:""}</div>
           <div class="cpy">${esc(o.email)}</div><div class="cpy">${esc(o.tel)}</div>
           ${o.client?`<button class="btn" type="button" data-cl="${o.client}">Ver ficha del cliente</button>`:""}</div>
+        ${(()=>{const f=orderProfit(o);return `<div class="step"><div class="step-h"><h3>Rentabilidad estimada</h3></div>
+          <div class="pfmini"><span>Ventas sin IVA</span><b class="mono">${eur(f.sales)}</b><span>Prenda</span><span class="mono">−${eur(f.garment)}</span><span>DTF / vinilo</span><span class="mono">−${eur(r2(f.dtf+f.vinyl))}</span>${f.ship||f.tpv?`<span>Envío / TPV</span><span class="mono">−${eur(r2(f.ship+f.tpv))}</span>`:""}
+          <span><b>Beneficio</b></span><b class="mono" style="color:${f.profit>=0?"inherit":"var(--danger)"}">${eur(f.profit)} · ${(f.margin*100).toFixed(0)} %</b></div>
+          ${f.unknown.length?`<div class="dim" style="font-size:12px">Falta coste: ${esc(f.unknown.join(" · "))}</div>`:""}</div>`})()}
         <div class="step"><div class="step-h"><h3>Entrega y pago</h3></div>
           <div>${o.ship==="tienda"?"Recogida en tienda":"Envío a: "+esc(o.addr||"")}</div>
           <div>Compromiso: <b>${dateES(new Date(o.due))}</b></div>
@@ -2737,9 +2747,10 @@ function freeRowHTML(l,pre){return `<div class="frow" data-frow>
   <input type="text" data-f="sizes" placeholder="Tallas (opcional)" value="${esc(l.sizes||"")}" aria-label="Tallas">
   <input type="number" min="0" step="1" data-f="qty" value="${l.qty||1}" aria-label="Unidades">
   <input type="number" min="0" step="0.01" data-f="unit" value="${l.unit!=null?(+l.unit).toFixed(2):""}" placeholder="€/ud" aria-label="Precio por unidad con IVA">
+  <input type="number" min="0" step="0.01" data-f="cost" value="${l.cost!=null?(+l.cost).toFixed(2):""}" placeholder="coste/ud" title="Tu coste por unidad sin IVA (no lo ve el cliente)" aria-label="Coste por unidad">
   <span class="mono" data-f="tot">${eur((+l.qty||0)*(+l.unit||0))}</span>
   <button class="x" type="button" data-frm aria-label="Quitar línea">×</button></div>`}
-function readFree(root){return [...root.querySelectorAll("[data-frow]")].map(r=>({desc:r.querySelector('[data-f=desc]').value.trim(),sizes:r.querySelector('[data-f=sizes]').value.trim(),qty:+r.querySelector('[data-f=qty]').value||0,unit:+r.querySelector('[data-f=unit]').value||0})).filter(l=>l.desc&&l.qty>0)}
+function readFree(root){return [...root.querySelectorAll("[data-frow]")].map(r=>({desc:r.querySelector('[data-f=desc]').value.trim(),sizes:r.querySelector('[data-f=sizes]').value.trim(),qty:+r.querySelector('[data-f=qty]').value||0,unit:+r.querySelector('[data-f=unit]').value||0,cost:r.querySelector('[data-f=cost]').value===""?null:+r.querySelector('[data-f=cost]').value})).filter(l=>l.desc&&l.qty>0)}
 function custFields(c,pre){return `<div class="formgrid">
   <label class="field"><span>Nombre y apellidos</span><input type="text" id="${pre}Name" value="${esc(c.name||"")}"></label>
   <label class="field"><span>Email</span><input type="email" id="${pre}Email" value="${esc(c.email||"")}"></label>
@@ -2770,7 +2781,7 @@ function editOrderSheet(ref){
         <input type="text" data-f="sizes" value="${esc(i.sizes||"")}" aria-label="Tallas"${locked?" disabled":""}>
         <input type="number" min="0" step="1" data-f="qty" value="${i.qty}" aria-label="Unidades"${locked?" disabled":""}>
         <input type="number" min="0" step="0.01" data-f="total" value="${(+i.total).toFixed(2)}" aria-label="Importe de la línea"${locked?" disabled":""}>
-        <span class="dim" style="font-size:12px">importe línea</span>
+        ${i.free?`<input type="number" min="0" step="0.01" data-f="cost" value="${i.cost!=null?(+i.cost).toFixed(2):""}" placeholder="coste/ud" title="Tu coste por unidad sin IVA" aria-label="Coste por unidad">`:`<span class="dim" style="font-size:12px">importe línea</span>`}
         ${locked?"":`<button class="x" type="button" data-oerm="${n}" aria-label="Quitar línea">×</button>`}</div>`).join("")}</div>
       ${locked?"":`<div id="oeFree"></div><button class="btn" type="button" data-fadd="oeFree" style="width:max-content">+ Añadir línea</button>`}
       <label class="field"><span>Notas internas</span><textarea id="oeNotes" rows="2">${esc(o.notes||"")}</textarea></label>
@@ -2810,8 +2821,9 @@ document.addEventListener("submit",async e=>{
   const patch={...c,ship,addr:ship==="envio"?$("#oeAddr").value.trim():"",notes:$("#oeNotes").value.trim()};
   const due=$("#oeDue").value;if(due)patch.due=new Date(due+"T12:00:00").toISOString();
   if(!o.invoice){const items=[];f.querySelectorAll("[data-oeline]").forEach(r=>{if(r.hidden)return;const i={...o.items[+r.dataset.oeline]};
-      i.sizes=r.querySelector('[data-f=sizes]').value.trim();i.qty=Math.max(0,parseInt(r.querySelector('[data-f=qty]').value)||0);i.total=r2(+r.querySelector('[data-f=total]').value||0);if(i.qty)items.push(i)});
-    readFree($("#oeFree")).forEach((l,k)=>items.push({id:"F"+Date.now()+k,free:true,name:l.desc,sizes:l.sizes,qty:l.qty,unit:l.unit,total:r2(l.qty*l.unit),parts:[]}));
+      i.sizes=r.querySelector('[data-f=sizes]').value.trim();i.qty=Math.max(0,parseInt(r.querySelector('[data-f=qty]').value)||0);i.total=r2(+r.querySelector('[data-f=total]').value||0);
+      const cc=r.querySelector('[data-f=cost]');if(cc)i.cost=cc.value===""?null:+cc.value;if(i.qty)items.push(i)});
+    readFree($("#oeFree")).forEach((l,k)=>items.push({id:"F"+Date.now()+k,free:true,name:l.desc,sizes:l.sizes,qty:l.qty,unit:l.unit,cost:l.cost,total:r2(l.qty*l.unit),parts:[]}));
     if(!items.length)return $("#oeErr").textContent="El pedido se queda sin líneas. Si no vale, cancélalo o elimínalo.";
     patch.items=items;patch.shipping=r2(+$("#oeShipC").value||0);patch.subtotal=r2(items.reduce((a,i)=>a+i.total,0));patch.total=r2(patch.subtotal+patch.shipping)}
   const pay=$("#oePay");if(pay)patch.pay=pay.value;
@@ -2965,6 +2977,78 @@ document.addEventListener("submit",e=>{if(e.target.id!=="ceForm")return;e.preven
   if(!name)return $("#ceErr").textContent="Escribe el nombre del cliente.";
   const ex=ensureExtra(k);Object.assign(ex[k],{name,type:$("#ceType").value.trim(),contact:$("#ceTel").value.trim(),transfer:$("#ceTransfer").checked,billing:{...readBilling("ce"),cif:$("#ceCif").value.trim().toUpperCase()}});
   saveExtra(ex);clientSheet(k)});
+
+/* ===== Rentabilidad (estimada) =====
+   Ventas sin IVA − coste de la prenda (precio del proveedor) − material de DTF y vinilo por cm²
+   (con un % de merma) − envío − comisión del TPV. No incluye mano de obra ni gastos fijos. */
+const COST_DEF={dtfEur:7,dtfW:60,dtfH:100,vinEur:9,vinW:300,vinH:30,waste:15,shipCost:5,tpvPct:0,nameW:30,nameH:6,numBH:25,numBW:20,numFH:8,numFW:8};
+const CST=()=>({...COST_DEF,...(RATES.costs||{})});
+function itemCost(i){
+  const C=CST(),dtf=C.dtfEur/(C.dtfW*C.dtfH),vin=C.vinEur/(C.vinW*C.vinH),k=1+C.waste/100;
+  const out={garment:0,dtf:0,vinyl:0,unknown:[]};const qty=+i.qty||0;
+  if(i.free){if(i.cost!=null)out.garment=+i.cost*qty;else out.unknown.push(`${i.name}: línea libre sin coste`);return out}
+  const p=prodById(i.pid);
+  if(p&&p.cost)out.garment=p.cost*qty;else out.unknown.push(`${i.name}: prenda sin precio de coste`);
+  const d=i.design||{};
+  (d.els||[]).forEach(e=>{if(e.kind==="logo"){const a=(+e.w||0)*(+e.w||0)*(e.ar||1);if(e.tech==="vinilo")out.vinyl+=a*vin*k*qty;else out.dtf+=a*dtf*k*qty}
+    else{out.vinyl+=(+e.wcm||0)*(+e.h||0)*vin*k*qty}});
+  const T=d.team;if(T&&T.on)(i.roster||[]).forEach(r=>{let a=0;if(T.name&&r.name)a+=C.nameW*C.nameH;if(T.numB&&r.num)a+=C.numBW*C.numBH;if(T.numF&&r.num)a+=C.numFW*C.numFH;out.vinyl+=a*vin*k});
+  if(!i.design&&!i.free)out.unknown.push(`${i.name}: sin datos del diseño`);
+  return out;
+}
+function orderProfit(o){
+  const C=CST();const refunds=(o.refunds||[]).reduce((a,r)=>a+(+r.amount||0),0);
+  const sales=r2((o.total-refunds)/1.21);let g=0,dtf=0,vin=0;const unk=[];
+  o.items.forEach(i=>{const c=itemCost(i);g+=c.garment;dtf+=c.dtf;vin+=c.vinyl;unk.push(...c.unknown)});
+  const ship=o.ship==="envio"?C.shipCost:0, tpv=["card","bizum"].includes(o.pay)?o.total*C.tpvPct/100:0;
+  const cost=r2(g+dtf+vin+ship+tpv), profit=r2(sales-cost);
+  return {sales,garment:r2(g),dtf:r2(dtf),vinyl:r2(vin),ship:r2(ship),tpv:r2(tpv),cost,profit,margin:sales?profit/sales:0,unknown:unk};
+}
+let PF_PERIOD="mes";
+function admProfit(orders){
+  const now=new Date(),ym=d=>d.slice(0,7),thisM=now.toISOString().slice(0,7),prev=new Date(now.getFullYear(),now.getMonth()-1,15).toISOString().slice(0,7),y=String(now.getFullYear());
+  const inP={mes:o=>ym(o.date)===thisM,anterior:o=>ym(o.date)===prev,ano:o=>o.date.slice(0,4)===y,todo:()=>true}[PF_PERIOD];
+  const list=orders.filter(o=>o.status!=="cancelado"&&inP(o)).map(o=>({o,f:orderProfit(o)}));
+  const sum=k=>r2(list.reduce((a,x)=>a+x.f[k],0));const S={sales:sum("sales"),garment:sum("garment"),dtf:sum("dtf"),vinyl:sum("vinyl"),ship:sum("ship"),tpv:sum("tpv"),profit:sum("profit")};
+  const margin=S.sales?S.profit/S.sales:0, inc=list.filter(x=>x.f.unknown.length).length, pend=list.filter(x=>!x.o.paid).length;
+  // por prenda
+  const byP={};list.forEach(({o})=>o.items.forEach(i=>{const c=itemCost(i),k=i.free?"Líneas libres":i.name;const sales=(+i.total||0)/1.21;
+    const b=byP[k]=byP[k]||{name:k,qty:0,sales:0,cost:0};b.qty+=+i.qty||0;b.sales+=sales;b.cost+=c.garment+c.dtf+c.vinyl}));
+  const top=Object.values(byP).sort((a,b)=>(b.sales-b.cost)-(a.sales-a.cost)).slice(0,12);
+  const C=CST(),pct=v=>(v*100).toFixed(1).replace(".",",")+" %";
+  const cin=(k,l,step="0.01")=>`<label class="field"><span>${l}</span><input type="number" step="${step}" min="0" data-cost="${k}" value="${C[k]}"></label>`;
+  $("#admBody").innerHTML=`<div class="adm-h"><div><span class="eyebrow">Gestión</span><h1>Rentabilidad</h1></div>
+    <div class="cats">${[["mes","Este mes"],["anterior","Mes anterior"],["ano","Este año"],["todo","Todo"]].map(([k,l])=>`<button class="chip" type="button" data-pf="${k}" aria-pressed="${PF_PERIOD===k}">${l}</button>`).join("")}</div></div>
+    <div class="kpis">
+      <div class="kpi"><b>${eur(S.sales)}</b><span>Ventas sin IVA · ${list.length} pedidos</span></div>
+      <div class="kpi"><b>${eur(r2(S.garment+S.dtf+S.vinyl+S.ship+S.tpv))}</b><span>Costes estimados</span></div>
+      <div class="kpi"><b style="color:${S.profit>=0?"var(--ok,#13874a)":"var(--danger)"}">${eur(S.profit)}</b><span>Beneficio bruto</span></div>
+      <div class="kpi"><b>${pct(margin)}</b><span>Margen sobre ventas</span></div></div>
+    <div class="pfgrid">
+      <div class="step"><div class="step-h"><h3>De dónde sale el coste</h3></div>
+        <div class="pfbars">${[["Prendas (proveedor)",S.garment],["DTF",S.dtf],["Vinilo",S.vinyl],["Envíos",S.ship],["Comisión TPV",S.tpv]].map(([l,v])=>{const tot=S.garment+S.dtf+S.vinyl+S.ship+S.tpv||1;
+          return `<div><span>${l}</span><span class="bar"><i style="width:${Math.max(0,v/tot*100).toFixed(1)}%"></i></span><b class="mono">${eur(v)}</b></div>`}).join("")}</div>
+        ${inc?`<div class="note warn">${inc} pedido(s) con algún coste desconocido (prenda sin precio de coste o línea libre): su beneficio sale más alto de lo real.</div>`:""}
+        ${pend?`<div class="note">Incluye ${pend} pedido(s) pendientes de cobro.</div>`:""}
+        <p class="dim" style="margin:0;font-size:13px">Estimación: no incluye mano de obra, luz, alquiler ni otros gastos fijos. Las ventas ya descuentan devoluciones.</p></div>
+      <div class="step"><div class="step-h"><h3>Prendas que más dejan</h3></div>
+        <div class="tbl"><table style="min-width:0"><thead><tr><th>Prenda</th><th>Ud</th><th>Ventas</th><th>Beneficio</th><th>Margen</th></tr></thead><tbody>
+        ${top.map(b=>`<tr><td>${esc(b.name)}</td><td class="mono">${b.qty}</td><td class="mono">${eur(r2(b.sales))}</td><td class="mono">${eur(r2(b.sales-b.cost))}</td><td class="mono">${b.sales?pct((b.sales-b.cost)/b.sales):"—"}</td></tr>`).join("")||`<tr><td colspan="5" class="dim">Sin ventas en este periodo.</td></tr>`}</tbody></table></div></div></div>
+    <div class="label" style="margin:18px 0 6px">Pedidos del periodo</div>
+    <div class="tbl"><table><thead><tr><th>Pedido</th><th>Fecha</th><th>Cliente</th><th>Ventas s/IVA</th><th>Prenda</th><th>DTF</th><th>Vinilo</th><th>Otros</th><th>Beneficio</th><th>Margen</th></tr></thead><tbody>
+    ${list.map(({o,f})=>`<tr data-ref="${o.ref}"><td class="mono">${o.ref}${f.unknown.length?` <span title="${esc(f.unknown.join(" · "))}" style="color:var(--danger)">●</span>`:""}</td><td>${dshort(o.date)}</td><td>${esc(o.company||o.name)}</td>
+      <td class="mono">${eur(f.sales)}</td><td class="mono">${eur(f.garment)}</td><td class="mono">${eur(f.dtf)}</td><td class="mono">${eur(f.vinyl)}</td><td class="mono">${eur(r2(f.ship+f.tpv))}</td>
+      <td class="mono" style="color:${f.profit>=0?"inherit":"var(--danger)"}">${eur(f.profit)}</td><td class="mono">${pct(f.margin)}</td></tr>`).join("")||`<tr><td colspan="10" class="dim" style="padding:20px">No hay pedidos en este periodo.</td></tr>`}</tbody></table></div>
+    <details class="step" style="margin-top:18px"><summary class="step-h" style="cursor:pointer"><h3>Costes de material y otros</h3><span class="aside">Se guardan al cambiar</span></summary>
+      <div class="formgrid">${cin("dtfEur","DTF: precio del metro (€)")}${cin("dtfW","DTF: ancho (cm)","1")}${cin("dtfH","DTF: largo (cm)","1")}
+        ${cin("vinEur","Vinilo: precio del rollo (€)")}${cin("vinW","Vinilo: largo del rollo (cm)","1")}${cin("vinH","Vinilo: ancho (cm)","1")}
+        ${cin("waste","Merma y separación (%)","1")}${cin("shipCost","Coste de cada envío (€)")}${cin("tpvPct","Comisión TPV / Bizum (%)")}
+        ${cin("nameW","Nombre: ancho (cm)","1")}${cin("nameH","Nombre: alto (cm)","1")}${cin("numBW","Nº espalda: ancho (cm)","1")}${cin("numBH","Nº espalda: alto (cm)","1")}${cin("numFW","Nº delante: ancho (cm)","1")}${cin("numFH","Nº delante: alto (cm)","1")}</div>
+      <p class="dim" style="margin:0;font-size:13px">DTF ${eur(C.dtfEur)} por ${C.dtfW}×${C.dtfH} cm = ${(C.dtfEur/(C.dtfW*C.dtfH)*100).toFixed(3).replace(".",",")} € cada 100 cm² · Vinilo ${eur(C.vinEur)} por ${C.vinW}×${C.vinH} cm = ${(C.vinEur/(C.vinW*C.vinH)*100).toFixed(3).replace(".",",")} € cada 100 cm². El coste de cada prenda es el precio del proveedor del Excel (talla M/L).</p></details>`;
+}
+document.addEventListener("click",e=>{const b=e.target.closest("[data-pf]");if(!b)return;PF_PERIOD=b.dataset.pf;admProfit(loadOrders())});
+document.addEventListener("change",e=>{const t=e.target.closest("[data-cost]");if(!t)return;RATES.costs={...(RATES.costs||{}),[t.dataset.cost]:Math.max(0,parseFloat(t.value)||0)};
+  try{STORE.setItem("ep_rates",JSON.stringify(RATES))}catch(x){}admProfit(loadOrders())});
 function newClientSheet(){
   $("#sheetRoot").innerHTML=`<div class="sheet" role="dialog" aria-label="Nuevo cliente"><div class="wrap" style="max-width:640px">
     <button class="btn" type="button" data-back>← Clientes</button>

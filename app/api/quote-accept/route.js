@@ -28,7 +28,7 @@ export async function POST(req) {
   if (!transfer && !cfg) return fail("El pago con tarjeta aún no está activado. Escríbenos y te lo cerramos por otra vía.", 503);
 
   const ship = c.ship === "envio" ? "envio" : "tienda";
-  const items = qt.lines.map((l, i) => ({ id: `Q${i}`, free: true, name: l.name, qty: l.qty, unit: l.unit, total: r2(l.total), sizes: l.sizes || "", parts: [`Presupuesto ${qt.ref}`] }));
+  const items = qt.lines.map((l, i) => ({ id: `Q${i}`, free: true, name: l.name, qty: l.qty, unit: l.unit, cost: (qt.lineCosts || [])[i] ?? null, total: r2(l.total), sizes: l.sizes || "", parts: [`Presupuesto ${qt.ref}`] }));
   const subtotal = r2(items.reduce((a, i) => a + i.total, 0));
   const R = kv.ep_rates || {};
   const shipping = ship === "envio" ? (subtotal >= (R.freeShip ?? 100) ? 0 : (R.shipping ?? 5.9)) : 0;

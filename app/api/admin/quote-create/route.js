@@ -18,7 +18,9 @@ export async function POST(req) {
     try { ({ key, pass } = await createClient(kv, nc)); } catch (e) { return fail(e.message); }
   }
   if (!key) return fail("Elige un cliente o crea uno nuevo.");
-  const lines = freeLines(d.lines).map(({ id, free, ...l }) => l);
+  const fl = freeLines(d.lines);
+  const lineCosts = fl.map((l) => l.cost);
+  const lines = fl.map(({ id, free, cost, ...l }) => l);
   if (!lines.length) return fail("Añade al menos una línea con concepto, unidades y precio.");
   const total = r2(lines.reduce((a, l) => a + l.total, 0));
   const c = kv.ep_clients[key];
@@ -28,7 +30,7 @@ export async function POST(req) {
     ref, kind: "presupuesto", manual: true, date: new Date().toISOString(), status: "enviado", client: key,
     name: str(nc.name, 120) || u.name || c.name, email: str(nc.email, 200).toLowerCase() || u.email || "", tel: str(nc.tel, 40) || c.contact || "", company: c.name,
     products: lines.map((l) => `${l.qty} × ${l.name}`).join(" · ").slice(0, 400), qty: String(lines.reduce((a, l) => a + l.qty, 0)),
-    lines, validUntil: str(d.validUntil, 10), comments: "", files: [],
+    lines, lineCosts, validUntil: str(d.validUntil, 10), comments: "", files: [],
     answer: { total, unit: "", days: str(d.days, 60), notes: str(d.notes, 2000), date: new Date().toISOString() },
   };
   await q("insert into quotes(ref,data) values($1,$2) on conflict(ref) do update set data=$2", [ref, JSON.stringify(qt)]);

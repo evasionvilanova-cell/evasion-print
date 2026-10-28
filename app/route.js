@@ -37,9 +37,11 @@ export async function GET() {
       `select o.ref,o.status,o.paid,o.total,o.pay,o.data,o.state,o.created_at,i.number invoice
        from orders o left join invoices i on i.ref=o.ref where o.client=$1 and (o.paid or o.pay not in ('card','bizum')) and coalesce(o.state->>'status',o.status)<>'cancelado' order by o.created_at desc limit 500`,
       [session.client]);
-    boot.myOrders = o.rows.map((r) => ({ ...orderForShop(r), ...(r.state || {}), invoice: r.invoice || null }));
+    // los costes son solo para Gestión
+    const noCost = (items) => (items || []).map(({ cost, ...i }) => i);
+    boot.myOrders = o.rows.map((r) => { const x = { ...orderForShop(r), ...(r.state || {}), invoice: r.invoice || null }; x.items = noCost(x.items); return x; });
     const mq = await q("select data from quotes where data->>'client'=$1 and data->>'status' in ('enviado','aceptado') and data ? 'answer' order by created_at desc limit 200", [session.client]);
-    boot.myQuotes = mq.rows.map((r) => r.data).filter((x) => x.answer && x.answer.total);
+    boot.myQuotes = mq.rows.map((r) => { const { lineCosts, ...x } = r.data; return x; }).filter((x) => x.answer && x.answer.total);
   }
   boot.blob = blobEnabled();
   const cfg = redsysConfig();
