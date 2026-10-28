@@ -2151,7 +2151,7 @@ function ordersPane(c,code,os){
     <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap">
       <a class="btn" href="/api/doc?type=pedido&ref=${encodeURIComponent(o.ref)}" target="_blank" rel="noopener">Ver pedido</a>
       ${o.invoice?`<a class="btn dark" href="/api/doc?type=factura&ref=${encodeURIComponent(o.ref)}" target="_blank" rel="noopener">Descargar factura ${esc(o.invoice)}</a>`
-        :IS_CLIENT?`<button class="btn dark" type="button" data-invopen="${esc(o.ref)}">Generar factura</button>`:`<span class="dim">Sin factura</span>`}
+        :IS_CLIENT||IS_ADMIN?`<button class="btn dark" type="button" data-invopen="${esc(o.ref)}">Generar factura</button>`:`<span class="dim">Sin factura</span>`}
     </div>
     ${INV_FOR===o.ref&&!o.invoice?`<form class="invform" data-invref="${esc(o.ref)}" novalidate style="margin-top:12px;display:flex;flex-direction:column;gap:10px">
       <div class="label">Datos de la factura</div>${billingFields(billingOf(c,o),"iv")}
@@ -2198,6 +2198,7 @@ document.addEventListener("click",e=>{const b=e.target.closest("[data-logodel]")
 document.addEventListener("change",e=>{if(e.target.id!=="pfCrest"||!e.target.files[0])return;
   shrinkImage(e.target.files[0],400).then(d=>api("/api/account",{action:"profile",crest:d})).then(r=>{const ex=BOOT.kv.ep_clients||{};if(ex[CUR.code])ex[CUR.code].crest=r.crest;reArea()})
     .catch(x=>{const n=$("#pfLogoErr");if(n)n.textContent=x.message})});
+document.addEventListener("click",e=>{const b=e.target.closest("[data-invadm]");if(!b)return;const ref=b.dataset.invadm||INV_FOR;INV_FOR=b.dataset.invadm||null;orderSheet(ref)});
 document.addEventListener("submit",async e=>{const f=e.target;
   if(f.id==="pfPass"){e.preventDefault();const a=$("#ppOld").value,b=$("#ppNew").value,c2=$("#ppNew2").value;$("#ppErr").textContent="";
     if(b.length<8)return $("#ppErr").textContent="La contraseña nueva necesita al menos 8 caracteres.";if(b!==c2)return $("#ppErr").textContent="Las dos contraseñas nuevas no coinciden.";
@@ -2206,8 +2207,9 @@ document.addEventListener("submit",async e=>{const f=e.target;
   if(f.classList.contains("invform")){e.preventDefault();const ref=f.dataset.invref,btn=f.querySelector("button[type=submit]");btn.disabled=true;
     const w=window.open("about:blank","_blank");
     try{const r=await api("/api/account",{action:"invoice",ref,billing:readBilling("iv")});
-      const o=(BOOT.myOrders||[]).find(x=>x.ref===ref);if(o)o.invoice=r.number;INV_FOR=null;
-      {const ex=BOOT.kv.ep_clients||{},cl=ex[CUR.code];if(cl&&!(cl.billing&&cl.billing.cif))cl.billing=readBilling("iv")}reArea();
+      [...(BOOT.myOrders||[]),...(BOOT.orders||[])].forEach(x=>{if(x.ref===ref)x.invoice=r.number});INV_FOR=null;
+      if(IS_CLIENT){const ex=BOOT.kv.ep_clients||{},cl=ex[CUR.code];if(cl&&!(cl.billing&&cl.billing.cif))cl.billing=readBilling("iv")}
+      if(f.dataset.insheet){orderSheet(ref)}else reArea();
       const url=`/api/doc?type=factura&ref=${encodeURIComponent(ref)}`;if(w)w.location=url;else location.href=url}
     catch(x){if(w)w.close();btn.disabled=false;$("#ivErr").textContent=x.message}}
 });
@@ -2721,7 +2723,11 @@ function orderSheet(ref){
         <div class="step"><div class="step-h"><h3>Entrega y pago</h3></div>
           <div>${o.ship==="tienda"?"Recogida en tienda":"Envío a: "+esc(o.addr||"")}</div>
           <div>Compromiso: <b>${dateES(new Date(o.due))}</b></div>
-          <div class="row" style="gap:6px;flex-wrap:wrap;margin:4px 0"><a class="btn" style="padding:4px 10px;font-size:13px" href="/api/doc?type=pedido&ref=${encodeURIComponent(o.ref)}" target="_blank" rel="noopener">Hoja de pedido</a>${o.invoice?`<a class="btn dark" style="padding:4px 10px;font-size:13px" href="/api/doc?type=factura&ref=${encodeURIComponent(o.ref)}" target="_blank" rel="noopener">Factura ${esc(o.invoice)}</a>`:`<span class="dim" style="font-size:13px">Sin factura</span>`}</div>
+          <div class="row" style="gap:6px;flex-wrap:wrap;margin:4px 0"><a class="btn" style="padding:4px 10px;font-size:13px" href="/api/doc?type=pedido&ref=${encodeURIComponent(o.ref)}" target="_blank" rel="noopener">Hoja de pedido</a>${o.invoice?`<a class="btn dark" style="padding:4px 10px;font-size:13px" href="/api/doc?type=factura&ref=${encodeURIComponent(o.ref)}" target="_blank" rel="noopener">Factura ${esc(o.invoice)}</a>`:`<button class="btn" style="padding:4px 10px;font-size:13px" type="button" data-invadm="${o.ref}">Generar factura</button>`}</div>
+          ${INV_FOR===o.ref&&!o.invoice?(()=>{const cl=o.client&&allClients()[o.client];const b=cl?billingOf(cl,o):{name:o.company||o.name||"",cif:o.cif||"",addr:o.ship==="envio"?o.addr:"",zip:"",city:"",province:""};
+            return `<form class="invform" data-invref="${o.ref}" data-insheet="1" novalidate style="margin-top:10px;display:flex;flex-direction:column;gap:8px"><div class="label">Datos de la factura</div>${billingFields(b,"iv")}
+            <p class="dim" style="margin:0;font-size:13px">Una vez generada no se puede cambiar.</p><div class="err" id="ivErr" style="color:var(--danger);font-size:14px"></div>
+            <div class="row" style="gap:8px"><button class="btn primary" type="submit">Generar y descargar</button><button class="btn ghost" type="button" data-invadm="">Cancelar</button></div></form>`})():""}
           ${!["card","bizum"].includes(o.pay)?`<div>${esc(PAYL[o.pay]||o.pay)} · <b class="mono">${eur(o.total)}</b> · ${o.paid?`<span class="st listo">Cobrado</span>`:`<span class="st incidencia">Pendiente de cobro</span> <button class="btn" type="button" data-paidref="${o.ref}" style="padding:3px 10px;font-size:13px">Marcar como cobrado</button>`}</div>`
             :`<div>Pagado con ${o.pay==="bizum"?"Bizum":"tarjeta"} · <b class="mono">${eur(o.total)}</b></div>`}</div>
         ${(o.refunds||[]).length?`<div class="step"><div class="step-h"><h3>Devoluciones</h3></div>

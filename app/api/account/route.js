@@ -64,7 +64,7 @@ export async function POST(req) {
   if (d.action === "invoice") {
     // Genera la factura de un pedido (una sola vez; después siempre se descarga la misma)
     const o = (await q("select ref,client,paid,pay,total,data,state from orders where ref=$1", [str(d.ref, 40)])).rows[0];
-    if (!o || (!admin && o.client !== s.client) || !(o.paid || o.pay === "transfer")) return fail("No encuentro ese pedido en tu área.", 404);
+    if (!o || (!admin && o.client !== s.client) || !(o.paid || !["card", "bizum"].includes(o.pay))) return fail("No encuentro ese pedido en tu área.", 404);
     const has = (await q("select number from invoices where ref=$1", [o.ref])).rows[0];
     if (has) return json({ ok: true, number: has.number });
     const b = d.billing || {};
