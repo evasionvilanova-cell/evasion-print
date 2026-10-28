@@ -1600,7 +1600,6 @@ function quote(){
 }
 function problems(Q){
   const p=[]; if(!Q.qty)p.push(S.team.on?"Añade al menos una fila a la lista.":"Indica cuántas unidades quieres en cada talla.");
-  if(!S.els.length&&!S.team.on)p.push("Añade un logo, un texto o nombres y números.");
   if(S.team.on&&(S.team.numB||S.team.numF)&&S.team.rows.some(r=>!r.num))p.push("Falta el número en alguna fila.");
   if(S.team.on&&S.team.name&&S.team.rows.some(r=>!r.name))p.push("Falta el nombre en alguna fila (o desmarca «Nombre»).");
   if(S.els.some(e=>e.kind==="text"&&!e.text.trim()))p.push("Hay un texto vacío.");
@@ -1611,7 +1610,7 @@ function renderTill(){
   $("#till").innerHTML=`
     <div class="lines">
       <span>${Q.qty} × ${esc(S.product.name)}</span><span>${eur(Q.garment)}</span>
-      <span>Personalización (${S.els.length} elemento${S.els.length===1?"":"s"})</span><span>${eur(Q.decoUnit*Q.qty)}</span>
+      ${S.els.length?`<span>Personalización (${S.els.length} elemento${S.els.length===1?"":"s"})</span><span>${eur(Q.decoUnit*Q.qty)}</span>`:S.team.on?"":`<span>Sin estampar <small style="opacity:.7">· puedes añadir logo o texto arriba</small></span><span>${eur(0)}</span>`}
       ${S.team.on?`<span>Nombres y números</span><span>${eur(Q.team)}</span>`:""}
       ${Q.discount?`<span>Descuento por cantidad (−${Math.round(Q.pct*100)} %)</span><span>−${eur(Q.discount)}</span>`:""}
     </div>
@@ -1664,10 +1663,11 @@ function addToCart(){
   const Q=quote(); if(problems(Q).length)return;
   const q=qtyBySize(); const sizes=Object.entries(q).filter(([,n])=>n).map(([s,n])=>`${n}×${s}`).join(" ");
   const parts=S.els.map(e=>e.kind==="logo"?`Logo ${e.tech==="vinilo"?"vinilo":"DTF"} ${e.w} cm (${e.place&&PLACES[e.place]?PLACES[e.place].label.toLowerCase():"posición libre"})${e.tech==="vinilo"&&e.recolor?` a un color ${vinyl(e.recolor)[0]} ${vinyl(e.recolor)[1].toLowerCase()}`:" a todo color"}`:`Texto «${e.text}» ${dimLabel(e)} vinilo ${vinyl(e.vinyl)[1].toLowerCase()}`);
+  if(!S.els.length&&!S.team.on)parts.push("Prenda lisa, sin estampar");
   if(S.team.on){const t=[S.team.name&&"nombre",S.team.numB&&"nº espalda",S.team.numF&&"nº delante"].filter(Boolean).join(" + ");parts.push(`${t} en vinilo ${vinyl(S.team.vinyl)[1].toLowerCase()}`)}
   // desglose para el carrito y el resumen de pago: todo lo que se cobra
   const sideL=e=>e.side==="front"?"delante":"detrás";
-  const bk=[{l:`Prenda · ${colorLabel(S.color)}`,d:`${Q.qty} ud`,a:Q.garment}];
+  const bk=[{l:`${!S.els.length&&!S.team.on?"Prenda lisa, sin estampar":"Prenda"} · ${colorLabel(S.color)}`,d:`${Q.qty} ud`,a:Q.garment}];
   S.els.forEach(e=>{const u=elPrice(e);
     const l=e.kind==="logo"?`Logo ${e.tech==="vinilo"?`vinilo ${vinyl(e.recolor||"V-01")[1].toLowerCase()}`:"DTF a todo color"} · ${dimLabel(e)} · ${sideL(e)}`:`Texto «${e.text}» · vinilo ${vinyl(e.vinyl)[1].toLowerCase()} · ${dimLabel(e)} · ${sideL(e)}`;
     bk.push({l,d:`${eur(u)} × ${Q.qty}`,a:u*Q.qty})});
