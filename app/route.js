@@ -33,6 +33,7 @@ export async function GET() {
   } else if (role === "client") {
     Object.assign(boot.kv, clientSlice(kv, session.client));
     boot.session = { key: session.client, email: session.email, name: session.name };
+    (await q("select key,url from files where key like $1", [`cl_${session.client}_%`])).rows.forEach((f) => { boot.files[f.key] = f.url; });
     const o = await q(
       `select o.ref,o.status,o.paid,o.total,o.pay,o.data,o.state,o.created_at,i.number invoice
        from orders o left join invoices i on i.ref=o.ref where o.client=$1 and (o.paid or o.pay not in ('card','bizum')) and coalesce(o.state->>'status',o.status)<>'cancelado' order by o.created_at desc limit 500`,

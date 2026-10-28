@@ -448,6 +448,8 @@ form.step>.field,#addrBox>.field,#addrBox>.row{flex:none}
 @media (max-width:640px){.tfprint{grid-template-columns:1fr 1fr 1fr}}
 .tfk{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.tfk .kpi b{font-size:22px;white-space:nowrap}
 @media (max-width:640px){.tfk{grid-template-columns:1fr}}
+.mylogos{display:flex;gap:6px;flex-wrap:wrap}.mylogo{position:relative;width:56px;height:56px;border:1px solid var(--line);border-radius:8px;background:#fff;padding:4px;cursor:pointer;display:grid;place-items:center}
+.mylogo img{max-width:100%;max-height:100%;object-fit:contain}.mylogo .x{position:absolute;top:-8px;right:-8px;background:var(--surface);border-radius:50%;width:20px;height:20px;font-size:14px;line-height:1}
 .supviews{display:flex;gap:8px;flex-wrap:wrap}.supviews figure{margin:0;width:96px;font-size:11px;text-align:center}.supviews img{width:96px;height:106px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:6px}
 .fwash{display:flex;gap:8px;flex-wrap:wrap}.fwash img{width:30px;height:30px;object-fit:contain}
 
@@ -753,6 +755,7 @@ footer{background:var(--surface);margin-top:40px}
         <button class="add" type="button" id="addText">+ Añadir texto<small>Vinilo de corte, 12 colores</small></button>
       </div>
       <input type="file" id="logoInput" accept="image/png,image/jpeg,image/svg+xml,image/webp" hidden>
+      <div id="myLogos"></div>
       <div id="elList" style="display:flex;flex-direction:column;gap:10px"></div>
     </section>
 
@@ -865,7 +868,7 @@ let blobLib=null;
 function loadBlobLib(){return blobLib||(blobLib=new Promise((ok,ko)=>{const s=document.createElement("script");s.src="/blob-client.js";s.onload=()=>ok(window.EPBlob);s.onerror=()=>ko(new Error("No se ha podido cargar el subidor de archivos."));document.head.appendChild(s)}))}
 const EXT={"image/png":"png","image/jpeg":"jpg","image/webp":"webp","image/svg+xml":"svg","image/gif":"gif","application/pdf":"pdf"};
 async function uploadFile(key,data){
-  if(typeof data==="string"&&/^https?:/.test(data))return data; // ya está en el servidor
+  if(typeof data==="string"&&/^https?:/.test(data)){try{await api("/api/files/register",{key,url:data})}catch(x){if(x.status!==409&&BOOT.blob)throw x}return data} // ya está en el servidor
   if(!BOOT.blob){if(typeof data!=="string")data=await new Promise((ok,ko)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=ko;r.readAsDataURL(data)});
     return (await api("/api/files/local",{key,data})).url}
   const blob=typeof data==="string"?await (await fetch(data)).blob():data;
@@ -1517,6 +1520,7 @@ function tiersHTML(el){
 function textWarn(el){const w=textCm(el).w;return w>34?`<div class="note warn">Mide ${fmtCm(w)} cm de ancho y el máximo imprimible es 34 cm. Baja la altura de letra o acorta el texto.</div>`:""}
 const pad=id=>`<span class="nudge-pad" aria-label="Mover"><button type="button" data-nudge="l" data-id="${id}" aria-label="Mover a la izquierda">←</button><button type="button" data-nudge="u" data-id="${id}" aria-label="Mover arriba">↑</button><button type="button" data-nudge="d" data-id="${id}" aria-label="Mover abajo">↓</button><button type="button" data-nudge="r" data-id="${id}" aria-label="Mover a la derecha">→</button></span>`;
 function renderEls(){
+  try{renderMyLogos()}catch(x){}
   const noSleeve=!hasSleeves(S.product);
   $("#elList").innerHTML=S.els.map(el=>{
     if(el.kind==="logo"){
@@ -1619,7 +1623,7 @@ $("#logoInput").addEventListener("change",e=>{
         if(!isSvg){for(let i=0;i<a.length;i+=4){if(a[i]>238&&a[i+1]>238&&a[i+2]>238)a[i+3]=0}x.putImageData(d,0,0);el.knocked=c.toDataURL("image/png")}
       }catch(err){}
       el.maskSrc=isSvg?src:(el.knocked||src);
-      S.els.push(el);S.sel=id;renderEls();
+      S.els.push(el);S.sel=id;renderEls();saveClientLogo(el);
     };
     img.onerror=()=>alertNote("No hemos podido leer esa imagen. Prueba con PNG o JPG.");
     img.src=src;
@@ -1737,7 +1741,7 @@ function renderTill(){
     ${probs.length?`<div class="err">${probs.map(esc).join("<br>")}</div>`:""}
     ${S.team.on?overlaps(S.els,S.team).map(m=>`<div class="nudge">⚠ ${esc(m)}. Muévelo si no es lo que quieres.</div>`).join(""):""}
     <button class="btn primary big" type="button" id="addCart" ${probs.length?"disabled":""}>Añadir al carrito · ${eur(Q.total)}</button>
-    <button class="btn save" type="button" id="saveClient" ${S.els.length?"":"disabled"}>Guardar este diseño en el área de un cliente</button>${pickBanner()}`;
+    <button class="btn save" type="button" id="saveClient" ${S.els.length?"":"disabled"}>Guardar este diseño en el área de un cliente</button>${pickBanner()}${cpEditBanner()}`;
   $("#mTotal").textContent=eur(Q.total); $("#mUnit").textContent=Q.qty?`${Q.qty} ud · ${eur(Q.unit)}/ud`:"Configura tu pedido";
   $("#mAdd").disabled=!!probs.length;
 }
@@ -2165,6 +2169,10 @@ function profilePane(c){
       <div style="display:flex;flex-direction:column;gap:6px"><label class="btn" style="cursor:pointer">${c.crest?"Cambiar imagen":"Subir escudo o logo"}<input type="file" id="pfCrest" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden></label>
       ${c.crest?`<button class="btn ghost" type="button" id="pfCrestDel">Quitar</button>`:""}<span class="dim" style="font-size:13px">PNG, JPG, WEBP o SVG</span></div></div>
       <div class="err" id="pfLogoErr" style="color:var(--danger);font-size:14px"></div></form>
+    <div class="step"><div class="step-h"><h3>Tus logos</h3></div>
+      ${(c.logos||[]).length?`<div class="mylogos">${c.logos.map(l=>`<span class="mylogo">${PH[l.file]?`<img src="${esc(PH[l.file])}" alt="${esc(l.name)}">`:""}<button class="x" type="button" data-logodel="${esc(l.id)}" aria-label="Borrar ${esc(l.name)}">×</button></span>`).join("")}</div>
+        <span class="dim" style="font-size:13px">Se guardan solos al subirlos en el diseñador. Los tienes en «Tu diseño» → «Tus logos».</span>`
+        :`<span class="dim" style="font-size:13px">Cuando subas un logo al diseñar una prenda, se guardará aquí para la próxima vez.</span>`}</div>
     <div class="step"><div class="step-h"><h3>Tu acceso</h3></div><div><b>${esc(SESSION.name)}</b><br><span class="dim">${esc(SESSION.email)}</span></div>
       <div class="dim" style="font-size:13px">Usuarios con acceso: ${(c.users||[]).map(u=>esc(u.name)).join(", ")||"—"}. Para añadir a alguien más, escríbenos.</div></div></div>
     <form class="step" id="pfBill" novalidate><div class="step-h"><h3>Datos de facturación</h3></div>
@@ -2185,6 +2193,8 @@ document.addEventListener("click",e=>{
   const iv=e.target.closest("[data-invopen]");if(iv){INV_FOR=iv.dataset.invopen||null;reArea();return}
   if(e.target.closest("#pfCrestDel")){api("/api/account",{action:"profile",crest:null}).then(r=>{CUR.c.crest="";const ex=BOOT.kv.ep_clients||{};if(ex[CUR.code])ex[CUR.code].crest="";reArea()}).catch(x=>$("#pfLogoErr").textContent=x.message)}
 });
+document.addEventListener("click",e=>{const b=e.target.closest("[data-logodel]");if(!b)return;
+  api("/api/account",{action:"logo-del",id:b.dataset.logodel}).then(r=>{const ex=BOOT.kv.ep_clients||{};if(ex[CUR.code])ex[CUR.code].logos=r.logos;reArea()}).catch(()=>{})});
 document.addEventListener("change",e=>{if(e.target.id!=="pfCrest"||!e.target.files[0])return;
   shrinkImage(e.target.files[0],400).then(d=>api("/api/account",{action:"profile",crest:d})).then(r=>{const ex=BOOT.kv.ep_clients||{};if(ex[CUR.code])ex[CUR.code].crest=r.crest;reArea()})
     .catch(x=>{const n=$("#pfLogoErr");if(n)n.textContent=x.message})});
@@ -2213,7 +2223,7 @@ function cprodHTML(cp){
       <div class="spec">${esc(pr.name)} · ${colorLabel(cp.color)}<br>${esc(specText(cp))}</div>
       ${sizeGridHTML(pr,cell)}
     </div>
-    <div class="side"><div><span class="pp">${eur(cp.price)}</span><br><small>precio acordado / ud</small></div><span class="lt" data-lt="${cp.id}">${cpQty(cp.id)?cpQty(cp.id)+" ud · "+eur(cpTotal(cp)):"—"}</span></div>
+    <div class="side"><div><span class="pp">${eur(cp.price)}</span><br><small>precio acordado / ud</small>${IS_ADMIN&&CUR?`<br><button class="linkbtn" type="button" data-cpedit="${CUR.code}|${cp.id}">Editar diseño</button>`:""}</div><span class="lt" data-lt="${cp.id}">${cpQty(cp.id)?cpQty(cp.id)+" ud · "+eur(cpTotal(cp)):"—"}</span></div>
   </article>`;
 }
 function updateAbar(){
@@ -2745,7 +2755,7 @@ function clientSheet(key){
         <div class="label">Productos de su área · precio acordado</div>
         <div class="tbl"><table style="min-width:0"><thead><tr><th>Producto</th><th>Prenda</th><th>Precio / ud</th><th></th></tr></thead><tbody>
         ${c.products.map(p=>{const pr=PRODUCTS.find(x=>x.id===p.pid);return `<tr><td><b>${esc(p.label)}</b></td><td>${esc(pr?pr.name:"")} · ${colorLabel(p.color)}</td>
-          <td><input type="number" step="0.01" min="0" value="${p.price.toFixed(2)}" data-cpprice="${p.id}" aria-label="Precio de ${esc(p.label)}"></td><td><button class="x" type="button" data-cprm="${p.id}" data-key="${key}" aria-label="Quitar producto">×</button></td></tr>`}).join("")||`<tr><td colspan="4" style="color:var(--muted)">Aún no tiene productos. Pulsa «Diseñar producto».</td></tr>`}
+          <td><input type="number" step="0.01" min="0" value="${p.price.toFixed(2)}" data-cpprice="${p.id}" aria-label="Precio de ${esc(p.label)}"> <button class="linkbtn" type="button" data-cpedit="${key}|${p.id}">Editar diseño</button></td><td><button class="x" type="button" data-cprm="${p.id}" data-key="${key}" aria-label="Quitar producto">×</button></td></tr>`}).join("")||`<tr><td colspan="4" style="color:var(--muted)">Aún no tiene productos. Pulsa «Diseñar producto».</td></tr>`}
         </tbody></table></div>
         <span class="savedmsg" id="cpSaved" hidden>Precio guardado</span>
         <div class="label" style="margin-top:10px">Pedidos</div>
@@ -3205,6 +3215,44 @@ document.addEventListener("click",e=>{
   if(e.target.closest("#tfQuote")){const R=tfCalc();NQ={client:""};
     newQuoteSheet({f:{},lines:[{desc:tfSummary(R),qty:R.q,unit:R.price,cost:r2(R.costUnit)}]})}
 });
+
+/* ===== Gestión: editar el diseño de un producto del área de un cliente ===== */
+let EDITCP=null;
+function findCP(key,id){const ex=loadExtra();const c=ex[key];return c&&(c.products||[]).find(p=>p.id===id)}
+function startCpEdit(key,id){const cp=findCP(key,id);if(!cp)return;const pr=prodById(cp.pid);if(!pr){alert("La prenda de este producto ya no está en el catálogo.");return}
+  EDITCP={key,id,label:cp.label,price:cp.price};$("#sheetRoot").innerHTML="";location.hash=cp.pid;
+  setTimeout(()=>{S.color=cp.color;S.els=JSON.parse(JSON.stringify(cp.els)).map(e=>({...e,id:uid(),orig:e.orig||e.src}));S.sel=null;S.team.on=false;S.sizes={};renderAll();renderCanvas()},120)}
+function cpEditBanner(){if(!EDITCP)return "";const c=allClients()[EDITCP.key];return `<div class="pickbar"><span>Editando <b>«${esc(EDITCP.label)}»</b> del área de ${esc(c?c.name:EDITCP.key)}. Cambia medidas, posición, técnica o el color de la prenda.</span>
+  <label class="field" style="max-width:200px"><span>Precio acordado por unidad</span><input type="number" step="0.01" min="0" id="cpEPrice" value="${(+EDITCP.price).toFixed(2)}"></label>
+  <div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn primary" type="button" id="cpESave">Guardar cambios</button><button class="btn" type="button" id="cpENew">Guardar como producto nuevo (${esc(colorLabel(S.color))})</button><button class="btn ghost" type="button" id="cpECancel">Cancelar</button></div></div>`}
+function endCpEdit(key){EDITCP=null;S.els=[];location.hash="admin-clientes";setTimeout(()=>clientSheet(key),150)}
+document.addEventListener("input",e=>{if(e.target.id==="cpEPrice"&&EDITCP)EDITCP.price=+e.target.value||0});
+document.addEventListener("click",e=>{
+  const b=e.target.closest("[data-cpedit]");if(b){const [k,id]=b.dataset.cpedit.split("|");startCpEdit(k,id);return}
+  if(!EDITCP)return;const key=EDITCP.key;
+  if(e.target.closest("#cpECancel")){endCpEdit(key);return}
+  const save=e.target.closest("#cpESave"),nw=e.target.closest("#cpENew");if(!save&&!nw)return;
+  if(!S.els.length&&!confirm("El producto se queda sin logo ni texto. ¿Guardar igualmente?"))return;
+  const ex=loadExtra(),list=ex[key].products,i=list.findIndex(p=>p.id===EDITCP.id),old=list[i];
+  const els=S.els.map(({id,orig,knocked,...r})=>({...r}));
+  if(save)list[i]={...old,pid:S.product.id,color:S.color,els,price:r2(EDITCP.price)};
+  else list.splice(i+1,0,{...old,id:"x"+Date.now(),label:`${old.label.replace(/ · [^·]+$/,"")} · ${COLORS[S.color][0]}`,pid:S.product.id,color:S.color,els,price:r2(EDITCP.price),last:{}});
+  saveExtra(ex);endCpEdit(key)});
+
+/* ===== Logos guardados del cliente ===== */
+const myKey=()=>IS_CLIENT&&SESSION?SESSION.key:(EDITCP?EDITCP.key:(typeof ADMIN_TARGET!=="undefined"&&ADMIN_TARGET)||null);
+function clientLogos(key){const c=key&&allClients()[key];return (c&&c.logos)||[]}
+function renderMyLogos(){const box=$("#myLogos");if(!box)return;const key=myKey(),L=clientLogos(key).filter(l=>PH[l.file]||BOOT.files[l.file]);L.forEach(l=>{PH[l.file]=PH[l.file]||BOOT.files[l.file];if(l.mask)PH[l.mask]=PH[l.mask]||BOOT.files[l.mask]});
+  box.innerHTML=L.length?`<div class="label" style="margin:8px 0 4px">${IS_CLIENT?"Tus logos":"Logos del cliente"} · pulsa para añadir</div><div class="mylogos">${L.map(l=>`<button type="button" class="mylogo" data-uselogo="${esc(l.id)}" title="${esc(l.name)}"><img src="${esc(PH[l.file])}" alt="${esc(l.name)}"></button>`).join("")}</div>`:""}
+document.addEventListener("click",e=>{const b=e.target.closest("[data-uselogo]");if(!b)return;const l=clientLogos(myKey()).find(x=>x.id===b.dataset.uselogo);if(!l)return;
+  const id=uid(),p=PLACES.centro,src=PH[l.file],mask=PH[l.mask]||src;
+  S.els.push({id,kind:"logo",side:S.side,x:S.side==="front"?p.x:50,y:S.side==="front"?p.y:34,w:S.side==="front"?p.w:26,place:S.side==="front"?"centro":"espalda",src,orig:src,maskSrc:mask,knocked:l.mask?mask:undefined,
+    name:l.name,tech:"dtf",vector:!!l.vector,px:l.px||0,ar:l.ar||1,lum:l.lum,whiteBg:!!l.whiteBg});S.sel=id;renderEls();renderCanvas();renderTill()});
+async function saveClientLogo(el){if(!IS_CLIENT||!SESSION)return;const key=SESSION.key,id=Date.now().toString(36);
+  try{const f=`cl_${key}_${id}`,m=`cl_${key}_${id}_m`;const fu=await uploadFile(f,el.src);PH[f]=fu;let mu=null;if(el.maskSrc&&el.maskSrc!==el.src){mu=await uploadFile(m,el.maskSrc);PH[m]=mu}
+    const logo={id,name:el.name,file:f,mask:mu?m:null,ar:el.ar,px:el.px,vector:!!el.vector,lum:el.lum,whiteBg:!!el.whiteBg};
+    const r=await api("/api/account",{action:"logo-add",logo});const ex=BOOT.kv.ep_clients||{};if(ex[key])ex[key].logos=r.logos;renderMyLogos();
+    alertNote("Logo guardado en tu área: la próxima vez lo tendrás en «Tus logos».")}catch(x){}}
 function newClientSheet(){
   $("#sheetRoot").innerHTML=`<div class="sheet" role="dialog" aria-label="Nuevo cliente"><div class="wrap" style="max-width:640px">
     <button class="btn" type="button" data-back>← Clientes</button>

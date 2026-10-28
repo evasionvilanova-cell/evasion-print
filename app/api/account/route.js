@@ -47,6 +47,20 @@ export async function POST(req) {
     return json({ ok: true, crest: c.crest, billing: c.billing });
   }
 
+  if (d.action === "logo-add" || d.action === "logo-del") {
+    let c;
+    try { c = await saveClient(s.client, (c) => {
+      const list = Array.isArray(c.logos) ? c.logos : [];
+      if (d.action === "logo-del") { c.logos = list.filter((l) => l.id !== str(d.id, 40)); return; }
+      const l = d.logo || {};
+      const pre = `cl_${s.client}_`;
+      if (list.some((x) => x.name === str(l.name, 120) && +x.px === (+l.px || 0) && +x.ar === (+l.ar || 1))) return; // ya lo tiene
+      if (!String(l.file || "").startsWith(pre) || (l.mask && !String(l.mask).startsWith(pre))) throw new Error("Logo no válido.");
+      c.logos = [{ id: str(l.id, 40), name: str(l.name, 120), file: l.file, mask: l.mask || null, ar: +l.ar || 1, px: +l.px || 0, vector: !!l.vector, lum: l.lum == null ? null : +l.lum, whiteBg: !!l.whiteBg }, ...list].slice(0, 40);
+    }); } catch (e) { return fail(e.message); }
+    return json({ ok: true, logos: c.logos });
+  }
+
   if (d.action === "invoice") {
     // Genera la factura de un pedido (una sola vez; después siempre se descarga la misma)
     const o = (await q("select ref,client,paid,pay,total,data,state from orders where ref=$1", [str(d.ref, 40)])).rows[0];
