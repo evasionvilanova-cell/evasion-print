@@ -442,6 +442,12 @@ form.step>.field,#addrBox>.field,#addrBox>.row{flex:none}
 .fmock{display:inline-flex;gap:4px;flex:none}.fmock .mini{width:58px;background:var(--surface-2);border:1px solid var(--line)}.fmock .mini svg{position:absolute;inset:0;width:100%;height:100%}
 .qmock{margin-bottom:4px}.qmock .fmock .mini{width:96px}.pickbar{margin-top:12px;padding:12px;border-radius:var(--r);background:#e4f23a;color:#15171c;display:flex;flex-direction:column;gap:8px;font-size:14px}
 .pickbar .btn.ghost{color:#15171c}
+.tfgrid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:14px;align-items:start;margin-bottom:12px}@media (max-width:980px){.tfgrid{grid-template-columns:1fr}}
+.tfprint{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1.3fr) 70px 70px 70px 28px;gap:6px;align-items:end}
+.tfprint label{display:flex;flex-direction:column;font-size:11px;color:var(--muted);gap:2px}
+@media (max-width:640px){.tfprint{grid-template-columns:1fr 1fr 1fr}}
+.tfk{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.tfk .kpi b{font-size:22px;white-space:nowrap}
+@media (max-width:640px){.tfk{grid-template-columns:1fr}}
 .supviews{display:flex;gap:8px;flex-wrap:wrap}.supviews figure{margin:0;width:96px;font-size:11px;text-align:center}.supviews img{width:96px;height:106px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:6px}
 .fwash{display:flex;gap:8px;flex-wrap:wrap}.fwash img{width:30px;height:30px;object-fit:contain}
 
@@ -2534,12 +2540,12 @@ function renderAdmin(id){
   const tab=id.startsWith("admin-")?id.slice(6):"pedidos";
   const orders=loadOrders(), clients=allClients();
   const open=orders.filter(o=>o.status!=="entregado").length;
-  const nav=[["pedidos","Pedidos",open],["presupuestos","Presupuestos",loadQuotes().filter(q=>q.status==="nuevo").length],["clientes","Clientes",Object.keys(clients).length],["catalogo","Catálogo",PRODUCTS.filter(p=>!p.off).length],["atributos","Atributos",""],["tarifas","Tarifas",""],["rentabilidad","Rentabilidad",""]];
+  const nav=[["pedidos","Pedidos",open],["presupuestos","Presupuestos",loadQuotes().filter(q=>q.status==="nuevo").length],["clientes","Clientes",Object.keys(clients).length],["catalogo","Catálogo",PRODUCTS.filter(p=>!p.off).length],["atributos","Atributos",""],["tarifas","Tarifas",""],["rentabilidad","Rentabilidad",""],["tarificador","Tarificador",""]];
   root.innerHTML=`<div class="wrap adm">
     <nav class="adm-nav" aria-label="Gestión">${nav.map(([k,l,n])=>`<a href="#admin${k==="pedidos"?"":"-"+k}" aria-current="${tab===k?"page":"false"}">${l}<small>${n}</small></a>`).join("")}
       <div class="who">${esc(ADMIN.email)}<br><button class="btn ghost" type="button" id="admOut" style="margin-top:8px;padding:5px 10px;font-size:13px">Cerrar sesión</button></div></nav>
     <section id="admBody" style="min-width:0"></section></div>`;
-  ({pedidos:admOrders,presupuestos:admQuotes,clientes:admClients,catalogo:admCatalog,atributos:admAttrs,tarifas:admRates,rentabilidad:admProfit}[tab]||admOrders)(orders,clients);
+  ({pedidos:admOrders,presupuestos:admQuotes,clientes:admClients,catalogo:admCatalog,atributos:admAttrs,tarifas:admRates,rentabilidad:admProfit,tarificador:admTarif}[tab]||admOrders)(orders,clients);
 }
 function admOrders(orders){
   const by=k=>orders.filter(o=>o.status===k).length;
@@ -3111,6 +3117,94 @@ document.addEventListener("click",e=>{
   const it=cart.pop();saveCart();updateCount();$("#drawerRoot").innerHTML="";
   LINE_ITEMS.push(it);PICK.draft.lines.push({desc:`${it.name} · ${colorLabel(it.color)}`,sizes:it.sizes,qty:it.qty,unit:r2(it.total/it.qty),li:LINE_ITEMS.length-1});
   pickReturn()});
+
+/* ===== Tarificador (uso interno): coste real, precio de la web y precio a medida ===== */
+const TF={pid:"",qty:50,prints:[{tech:"dtf",w:9,h:9,colors:1,label:"Pecho / corazón"}],names:false,numB:false,numF:false,price:null};
+const TF_PRESETS=[["Pecho / corazón",9,9],["Delante centro",25,25],["Espalda grande",28,35],["Nuca",8,4],["Manga",8,8]];
+function tfCalc(){
+  const p=prodById(TF.pid), q=Math.max(1,+TF.qty||1), C=CST(), dtfR=C.dtfEur/(C.dtfW*C.dtfH), vinR=C.vinEur/(C.vinW*C.vinH), k=1+C.waste/100;
+  const out={p,q,lines:[],costGarment:p&&p.cost?p.cost*q:0,webGarment:p?p.price*q:0,noCost:!(p&&p.cost),webDeco:0,webSetup:0,cost:0,cliches:0};
+  TF.prints.forEach(pr=>{const w=+pr.w||0,h=+pr.h||0,a=w*h;let web=0,cost=0,setup=0,setupCost=0;
+    if(pr.tech==="dtf"){web=DECO.dtf(w);cost=a*dtfR*k}
+    else if(pr.tech==="vinilo"){web=DECO.vinylLogo(w);cost=a*vinR*k*(+pr.colors||1)}
+    else if(pr.tech==="texto"){web=DECO.text(w);cost=a*vinR*k}
+    else if(pr.tech==="seri"){const n=Math.max(1,+pr.colors||1);web=DECO.seri*n;cost=C.serUnit*n;setup=DECO.cliche*1.21*n;setupCost=C.serCliche*n}
+    out.lines.push({...pr,web,cost,setup,setupCost});out.webDeco+=web*q;out.webSetup+=setup;out.cost+=cost*q+setupCost;out.cliches+=setupCost});
+  if(TF.names){out.webDeco+=DECO.name*q;out.cost+=C.nameW*C.nameH*vinR*k*q}
+  if(TF.numB){out.webDeco+=DECO.numBack*q;out.cost+=C.numBW*C.numBH*vinR*k*q}
+  if(TF.numF){out.webDeco+=DECO.numFront*q;out.cost+=C.numFW*C.numFH*vinR*k*q}
+  out.cost+=out.costGarment;
+  out.pct=tierFor(q);const sub=out.webGarment+out.webDeco;out.web=r2(sub-sub*out.pct+out.webSetup);out.webUnit=out.web/q;
+  out.costUnit=out.cost/q;out.price=TF.price!=null?+TF.price:r2(out.webUnit);
+  const net=u=>u/1.21;out.profitUnit=net(out.price)-out.costUnit;out.margin=out.price?out.profitUnit/net(out.price):0;
+  out.webMargin=out.webUnit?(net(out.webUnit)-out.costUnit)/net(out.webUnit):0;
+  out.forMargin=m=>r2(out.costUnit/(1-m)*1.21);
+  return out;
+}
+function tfSummary(R){return `${R.p?R.p.name:"Prenda"} · ${TF.prints.map(pr=>`${pr.label||""} ${({dtf:"DTF",vinilo:"vinilo",texto:"texto vinilo",seri:`serigrafía ${pr.colors>1?pr.colors+" colores":"1 color"}`})[pr.tech]} ${pr.w}×${pr.h} cm`.trim()).join(" + ")}${TF.names?" + nombres":""}${TF.numB?" + nº espalda":""}${TF.numF?" + nº delante":""}`}
+function admTarif(){
+  const R=tfCalc(), pct=v=>(v*100).toFixed(1).replace(".",",")+" %";
+  const prodList=PRODUCTS.filter(x=>!x.off);
+  $("#admBody").innerHTML=`<div class="adm-h"><div><span class="eyebrow">Uso interno</span><h1>Tarificador</h1></div></div>
+  <div class="tfgrid">
+    <form class="step" id="tfForm" novalidate style="display:flex;flex-direction:column;gap:12px">
+      <label class="field"><span>Prenda del catálogo</span><input type="text" id="tfProd" list="tfProds" placeholder="Escribe nombre o referencia" value="${R.p?esc(R.p.name+(R.p.ref?" · "+R.p.ref:"")):""}" autocomplete="off">
+        <datalist id="tfProds">${prodList.map(x=>`<option value="${esc(x.name+(x.ref?" · "+x.ref:""))}"></option>`).join("")}</datalist></label>
+      ${R.p?`<div class="dim" style="font-size:13px">Coste proveedor: <b class="mono">${R.p.cost?eur(R.p.cost)+" sin IVA":"sin dato"}</b> · Precio web: <b class="mono">${eur(R.p.price)}</b></div>`:""}
+      <label class="field" style="max-width:180px"><span>Unidades aproximadas</span><input type="number" min="1" step="1" id="tfQty" value="${TF.qty}"></label>
+      <div class="label">Estampaciones</div>
+      ${TF.prints.map((pr,i)=>`<div class="tfprint" data-tfp="${i}">
+        <select data-tf="tech" aria-label="Técnica">${[["dtf","DTF a todo color"],["vinilo","Vinilo (logo)"],["texto","Texto en vinilo"],["seri","Serigrafía"]].map(([v,l])=>`<option value="${v}"${pr.tech===v?" selected":""}>${l}</option>`).join("")}</select>
+        <select data-tf="preset" aria-label="Posición"><option value="">Posición…</option>${TF_PRESETS.map(([l,w,h])=>`<option value="${l}|${w}|${h}"${pr.label===l?" selected":""}>${l} (${w}×${h})</option>`).join("")}</select>
+        <label>Ancho<input type="number" min="1" step="1" data-tf="w" value="${pr.w}"></label><label>Alto<input type="number" min="1" step="1" data-tf="h" value="${pr.h}"></label>
+        ${pr.tech==="seri"||pr.tech==="vinilo"?`<label>Colores<input type="number" min="1" max="8" step="1" data-tf="colors" value="${pr.colors||1}"></label>`:"<span></span>"}
+        <button class="x" type="button" data-tfrm="${i}" aria-label="Quitar">×</button></div>`).join("")}
+      <button class="btn" type="button" id="tfAdd" style="width:max-content">+ Añadir estampación</button>
+      <div class="checks"><label><input type="checkbox" id="tfNames"${TF.names?" checked":""}> Nombres</label><label><input type="checkbox" id="tfNumB"${TF.numB?" checked":""}> Nº espalda</label><label><input type="checkbox" id="tfNumF"${TF.numF?" checked":""}> Nº delante</label></div>
+      ${TF.prints.some(x=>x.tech==="seri")&&R.q<DECO.serMin?`<div class="note warn">La serigrafía en la web es desde ${DECO.serMin} ud; aquí la puedes calcular igual para un presupuesto.</div>`:""}
+    </form>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="step"><div class="step-h"><h3>Coste real</h3><span class="aside">sin IVA</span></div>
+        <div class="pfmini"><span>Prenda${R.noCost?" (sin dato)":""}</span><span class="mono">${eur(r2(R.costGarment/R.q))}/ud</span>
+          ${R.lines.map(l=>`<span>${esc(l.label||({dtf:"DTF",vinilo:"Vinilo",texto:"Texto",seri:"Serigrafía"})[l.tech])} ${l.w}×${l.h}</span><span class="mono">${eur(r2(l.cost))}/ud${l.setupCost?` + ${eur(l.setupCost)}`:""}</span>`).join("")}
+          ${TF.names||TF.numB||TF.numF?`<span>Nombres y números</span><span class="mono">incluido</span>`:""}
+          <span><b>Coste por unidad</b></span><b class="mono">${eur(r2(R.costUnit))}</b><span>Coste total (${R.q} ud)</span><span class="mono">${eur(r2(R.cost))}</span></div></div>
+      <div class="step"><div class="step-h"><h3>Precio de la web</h3><span class="aside">con IVA</span></div>
+        <div class="pfmini"><span>Prenda</span><span class="mono">${eur(r2(R.webGarment/R.q))}/ud</span><span>Estampación</span><span class="mono">${eur(r2(R.webDeco/R.q))}/ud</span>
+          ${R.pct?`<span>Descuento por cantidad</span><span class="mono">−${Math.round(R.pct*100)} %</span>`:""}${R.webSetup?`<span>Clichés</span><span class="mono">${eur(r2(R.webSetup))}</span>`:""}
+          <span><b>Precio por unidad</b></span><b class="mono">${eur(r2(R.webUnit))}</b><span>Total</span><span class="mono">${eur(R.web)}</span><span>Margen</span><span class="mono">${pct(R.webMargin)}</span></div></div>
+      <div class="step tfprice"><div class="step-h"><h3>Tu precio para el cliente</h3><span class="aside">con IVA</span></div>
+        <div class="row" style="gap:10px;align-items:flex-end;flex-wrap:wrap"><label class="field" style="max-width:160px"><span>€ por unidad</span><input type="number" min="0" step="0.01" id="tfPrice" value="${R.price.toFixed(2)}"></label>
+          <div class="row" style="gap:6px;flex-wrap:wrap">${[0.3,0.4,0.5,0.6].map(m=>`<button class="chip" type="button" data-tfm="${R.forMargin(m)}">Margen ${m*100} % · ${eur(R.forMargin(m))}</button>`).join("")}<button class="chip" type="button" data-tfm="${r2(R.webUnit)}">Precio web</button></div></div>
+        <div class="tfk"><div class="kpi"><b>${eur(r2(R.price*R.q))}</b><span>Total con IVA · ${R.q} ud</span></div>
+          <div class="kpi"><b style="color:${R.profitUnit>=0?"inherit":"var(--danger)"}">${eur(r2(R.profitUnit*R.q))}</b><span>Beneficio (${eur(r2(R.profitUnit))}/ud)</span></div>
+          <div class="kpi"><b>${pct(R.margin)}</b><span>Margen sobre la venta</span></div></div>
+        ${R.price<R.webUnit*0.999?`<div class="note">${pct(1-R.price/R.webUnit)} por debajo del precio de la web.</div>`:""}
+        <button class="btn dark big" type="button" id="tfQuote">Crear presupuesto con esta línea</button></div>
+    </div></div>
+  <p class="dim" style="font-size:13px">El coste usa el precio del proveedor del Excel y los costes de material de Rentabilidad (DTF ${eur(C0().dtfEur)} el metro, vinilo ${eur(C0().vinEur)} el rollo, merma ${C0().waste} %). No incluye mano de obra.</p>`;
+}
+const C0=()=>CST();
+function tfRead(){const f=$("#tfForm");if(!f)return;const v=$("#tfProd").value.trim();
+  const m=PRODUCTS.find(x=>!x.off&&(x.name+(x.ref?" · "+x.ref:""))===v)||PRODUCTS.find(x=>!x.off&&x.ref&&v.toLowerCase().includes(x.ref.toLowerCase()));if(m&&m.id!==TF.pid){TF.pid=m.id;TF.price=null}
+  const q=+$("#tfQty").value||1;if(q!==TF.qty){TF.qty=q;TF.price=null}
+  f.querySelectorAll("[data-tfp]").forEach(r=>{const pr=TF.prints[+r.dataset.tfp];["w","h","colors"].forEach(k=>{const n=r.querySelector(`[data-tf=${k}]`);if(n)pr[k]=+n.value||1});pr.tech=r.querySelector("[data-tf=tech]").value});
+  TF.names=$("#tfNames").checked;TF.numB=$("#tfNumB").checked;TF.numF=$("#tfNumF").checked}
+function tfRefresh(keepFocus){const a=document.activeElement,id=a&&a.id,tfp=a&&a.closest&&a.closest("[data-tfp]"),k=a&&a.dataset&&a.dataset.tf,pos=a&&a.selectionStart;
+  admTarif();let n=id?document.getElementById(id):null;if(!n&&tfp&&k)n=document.querySelector(`[data-tfp="${tfp.dataset.tfp}"] [data-tf=${k}]`);
+  if(n){n.focus();try{if(pos!=null&&n.setSelectionRange&&n.type==="text")n.setSelectionRange(pos,pos)}catch(x){}}}
+document.addEventListener("change",e=>{if(!e.target.closest("#tfForm"))return;
+  if(e.target.dataset.tf==="preset"&&e.target.value){const [l,w,h]=e.target.value.split("|");const pr=TF.prints[+e.target.closest("[data-tfp]").dataset.tfp];Object.assign(pr,{label:l,w:+w,h:+h});TF.price=null;admTarif();return}
+  tfRead();TF.price=TF.price;tfRefresh()});
+document.addEventListener("input",e=>{if(e.target.id==="tfPrice"){TF.price=+e.target.value||0;tfRefresh();return}
+  if(!e.target.closest("#tfForm")||e.target.id==="tfProd")return;clearTimeout(window._tfT);window._tfT=setTimeout(()=>{tfRead();TF.price=null;tfRefresh()},350)});
+document.addEventListener("click",e=>{
+  if(e.target.closest("#tfAdd")){tfRead();TF.prints.push({tech:"dtf",w:28,h:35,colors:1,label:"Espalda grande"});TF.price=null;admTarif();return}
+  const rm=e.target.closest("[data-tfrm]");if(rm){tfRead();TF.prints.splice(+rm.dataset.tfrm,1);TF.price=null;admTarif();return}
+  const m=e.target.closest("[data-tfm]");if(m){TF.price=+m.dataset.tfm;admTarif();return}
+  if(e.target.closest("#tfQuote")){const R=tfCalc();NQ={client:""};
+    newQuoteSheet({f:{},lines:[{desc:tfSummary(R),qty:R.q,unit:R.price,cost:r2(R.costUnit)}]})}
+});
 function newClientSheet(){
   $("#sheetRoot").innerHTML=`<div class="sheet" role="dialog" aria-label="Nuevo cliente"><div class="wrap" style="max-width:640px">
     <button class="btn" type="button" data-back>← Clientes</button>
