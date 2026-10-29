@@ -472,6 +472,7 @@ form.step>.field,#addrBox>.field,#addrBox>.row{flex:none}
 .facform{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;padding:6px 0}.facform .err,.facbill .err{color:var(--danger);font-size:14px;flex-basis:100%}
 .facbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}.facbill{margin-bottom:12px}
 .adm-h .seg{display:inline-flex}td.r,th.r{text-align:right}
+.phflash{outline:3px solid var(--ok,#13874a);outline-offset:2px;transition:outline-color .6s}
 .tfonts{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:6px;margin-top:4px}
 .tfont{border:1px solid var(--line,#ddd);background:#fff;border-radius:8px;padding:8px 4px 6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;color:inherit}
 .tfont b{font-size:20px;line-height:1.1;white-space:nowrap}.tfont small{font-size:11px;opacity:.7}
@@ -3856,7 +3857,17 @@ async function fillSupViews(p){
 {const photoSheet0=photoSheet;photoSheet=function(pid){photoSheet0(pid);const p=prodById(pid);if(p)fillSupViews(p)}}
 document.addEventListener("click",e=>{const b=e.target.closest("[data-backview]");if(!b||!PHOTO_PID)return;const p=prodById(PHOTO_PID);
   setProd(p,{backView:b.dataset.backview||null});saveCatalog();fillSupViews(p);renderCats()});
+/* al volver a pintar la hoja de fotos (pegar, subir, quitar) se queda donde estabas */
 function photoSheet(pid){
+  const same=PHOTO_PID===pid&&document.querySelector("#sheetRoot .phgrid");
+  const els=same?[...document.querySelectorAll("#sheetRoot *")].filter(n=>n.scrollTop>0).map(n=>[n.className,n.scrollTop]):[];
+  const sh=document.querySelector("#sheetRoot .sheet"),top=sh?sh.scrollTop:0,wy=window.scrollY;
+  photoSheetDraw(pid);
+  if(!same)return;
+  const sh2=document.querySelector("#sheetRoot .sheet");if(sh2)sh2.scrollTop=top;window.scrollTo(0,wy);
+  els.forEach(([c,t])=>{if(!c||typeof c!=="string")return;const n=document.querySelector("#sheetRoot ."+c.trim().split(/\s+/).join("."));if(n)n.scrollTop=t});
+}
+function photoSheetDraw(pid){
   PHOTO_PID=pid; const p=prodById(pid); if(!p)return; const ph=p.photos||{}, by=ph.byColor||{};
   const thumb=(key,label,attrs,code,side)=>{const has=key&&PH[key];
     return `<div class="phslot${has?" full":""}">${has?`<img src="${PH[key]}" alt="${esc(label)}"><button class="x" type="button" ${attrs} aria-label="Quitar foto ${esc(label)}">×</button>`:""}
@@ -4217,6 +4228,7 @@ document.addEventListener("paste",async e=>{
   const f=item.getAsFile();try{const ok=await storePhoto(p,t.code,t.side,f);
     PHOTO_MSG=(ok?"✓ ":"")+`Imagen pegada en ${t.code==="__base"?"foto base":colorLabel(t.code)} · ${t.side==="back"?"detrás":"delante"}.`+(PASTE_T?"":" (No habías elegido recuadro: ha ido a la foto base.)")}catch(err){PHOTO_MSG=err.message}
   PASTE_T=null;photoSheet(p.id);renderCats();
+  const slot=document.querySelector(`[data-pastet="${CSS.escape(t.code+"|"+t.side)}"]`);if(slot){const box=slot.closest(".phslot")||slot;box.classList.add("phflash");box.scrollIntoView({block:"nearest"});setTimeout(()=>box.classList.remove("phflash"),1600)}
 });
 /* hojas (pedido, cliente) */
 $("#sheetRoot").addEventListener("change",e=>{
