@@ -459,6 +459,12 @@ form.step>.field,#addrBox>.field,#addrBox>.row{flex:none}
 .szchips input:checked+span{border-color:var(--ink);background:var(--ink);color:#fff}.szchips input:focus-visible+span{outline:2px solid var(--accent)}
 .cpthumb{display:block;width:56px}.cpthumb svg{position:absolute;inset:0;width:100%;height:100%}
 .cpnote{margin-top:4px;font-size:12px;padding:4px 6px}
+.cattabs{display:flex;gap:8px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:thin}
+.cattabs .chip{flex:none;font-size:16px;font-weight:600;padding:12px 20px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px}
+.cattabs .chip:hover{border-color:var(--ink)}.cattabs .chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.subtabs{margin:4px 0 18px;gap:6px}.subtabs .chip{font-size:14px;padding:8px 14px;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+.subtabs .chip[aria-pressed="true"]{background:var(--accent,#1846d1);border-color:var(--accent,#1846d1);color:#fff}
+@media (max-width:640px){#catSearch{width:100%!important}.cattabs .chip{font-size:15px;padding:10px 16px}}
 .supviews{display:flex;gap:8px;flex-wrap:wrap}.supviews figure{margin:0;width:96px;font-size:11px;text-align:center}.supviews img{width:96px;height:106px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:6px}
 .fwash{display:flex;gap:8px;flex-wrap:wrap}.fwash img{width:30px;height:30px;object-fit:contain}
 
@@ -716,12 +722,12 @@ footer{background:var(--surface);margin-top:40px}
 </div>
 <div id="catpage" hidden>
 <section class="wrap sec" id="catalogo" aria-label="Catálogo" style="padding-top:40px">
-  <div class="sec-h">
+  <div class="sec-h" style="margin-bottom:14px">
     <div><span class="eyebrow">Catálogo</span><h2>Todas las prendas</h2></div>
-    <div class="cats" id="cats" role="toolbar" aria-label="Categorías"></div>
+    <div class="row" style="gap:10px"><span class="dim" id="gridCount"></span><input type="search" id="catSearch" placeholder="Buscar por nombre o referencia" aria-label="Buscar prenda" style="width:280px"></div>
   </div>
-  <div class="row" style="justify-content:space-between;margin:-8px 0 14px;gap:10px"><div class="cats" id="subcats" aria-label="Subcategorías"></div>
-    <div class="row" style="gap:10px"><span class="dim" id="gridCount"></span><input type="search" id="catSearch" placeholder="Buscar por nombre o referencia" aria-label="Buscar prenda" style="width:240px"></div></div>
+  <div class="cattabs" id="cats" role="toolbar" aria-label="Categorías"></div>
+  <div class="cats subtabs" id="subcats" aria-label="Subcategorías"></div>
   <div class="grid" id="grid"></div>
   <div id="gridMore" style="display:flex;justify-content:center;margin-top:24px"></div>
 </section>
@@ -1230,9 +1236,12 @@ function renderCats(){
   $("#gridCount").textContent=`${list.length} prenda${list.length===1?"":"s"}`;
   renderHome();
 }
-$("#cats").addEventListener("click",e=>{const b=e.target.closest("[data-cat]");if(!b)return;S.cat=b.dataset.cat;S.sub=null;S.lim=24;renderCats()});
-$("#subcats").addEventListener("click",e=>{const b=e.target.closest("[data-sub]");if(!b)return;S.sub=b.dataset.sub||null;S.lim=24;renderCats()});
-$("#grid").addEventListener("click",e=>{const c=e.target.closest("[data-cat-go]");if(c){S.cat=c.dataset.catGo;S.sub=null;S.lim=24;renderCats();$("#catalogo").scrollIntoView({behavior:"smooth"});return}
+/* el buscador se vacía al cambiar de categoría o de página */
+function clearCatQ(){S.q="";const i=$("#catSearch");if(i)i.value=""}
+window.addEventListener("hashchange",()=>{if(S.q){clearCatQ();renderCats()}});
+$("#cats").addEventListener("click",e=>{const b=e.target.closest("[data-cat]");if(!b)return;S.cat=b.dataset.cat;S.sub=null;S.lim=24;clearCatQ();renderCats()});
+$("#subcats").addEventListener("click",e=>{const b=e.target.closest("[data-sub]");if(!b)return;S.sub=b.dataset.sub||null;S.lim=24;clearCatQ();renderCats()});
+$("#grid").addEventListener("click",e=>{const c=e.target.closest("[data-cat-go]");if(c){clearCatQ();S.cat=c.dataset.catGo;S.sub=null;S.lim=24;renderCats();$("#catalogo").scrollIntoView({behavior:"smooth"});return}
   const s2=e.target.closest("[data-sub-go]");if(s2){S.sub=s2.dataset.subGo;S.lim=24;renderCats();$("#catalogo").scrollIntoView({behavior:"smooth"})}});
 $("#gridMore").addEventListener("click",e=>{if(e.target.closest("#moreBtn")){S.lim=(S.lim||24)+24;renderCats()}});
 $("#catSearch").addEventListener("input",e=>{S.q=e.target.value;S.lim=24;clearTimeout(window.__qs);window.__qs=setTimeout(renderCats,150)});
