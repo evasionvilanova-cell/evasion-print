@@ -3617,19 +3617,23 @@ function prodForm(p){
     <div class="row"><button class="btn primary" type="submit">${p?"Guardar cambios":"Añadir al catálogo"}</button><button class="btn" type="button" data-npclose>Cancelar</button></div>
   </form>`;
 }
-let ADM_Q="", ADM_LIM=60, ADM_NOPH=false;
+let ADM_Q="", ADM_LIM=60, ADM_NOPH=false, ADM_CAT="", ADM_SUB="", ADM_VIS="";
 function admProdList(){const q=ADM_Q.trim().toLowerCase();const ci=k=>{const i=CATS.findIndex(c=>c[0]===k);return i<0?999:i};
-  let l=PRODUCTS.map((p,i)=>[p,i]).filter(([p])=>(!q||(p.name+" "+(p.ref||"")).toLowerCase().includes(q))&&(!ADM_NOPH||(!p.off&&!photoCount(p)))).sort((a,b)=>ci(a[0].cat)-ci(b[0].cat)||a[1]-b[1]).map(x=>x[0]);
+  let l=PRODUCTS.map((p,i)=>[p,i]).filter(([p])=>(!q||(p.name+" "+(p.ref||"")).toLowerCase().includes(q))&&(!ADM_NOPH||(!p.off&&!photoCount(p)))&&(!ADM_CAT||inCat(p,ADM_CAT))&&(!ADM_SUB||(p.subs||[]).includes(ADM_SUB))&&(!ADM_VIS||(ADM_VIS==="on"?!p.off:!!p.off))).sort((a,b)=>ci(a[0].cat)-ci(b[0].cat)||a[1]-b[1]).map(x=>x[0]);
   if(EDIT_PID&&EDIT_PID!=="__new"){const e=prodById(EDIT_PID);if(e&&!l.slice(0,ADM_LIM).includes(e))l=[e,...l]}return l.slice(0,ADM_LIM)}
 function clientUses(pid){return Object.values(allClients()).reduce((a,c)=>a+c.products.filter(x=>x.pid===pid).length,0)}
 function admCatalog(){
   const editP=EDIT_PID&&EDIT_PID!=="__new"?PRODUCTS.find(p=>p.id===EDIT_PID):null;
   $("#admBody").innerHTML=`<div class="adm-h"><div><span class="eyebrow">Catálogo</span><h1>Prendas base</h1></div><div class="row"><button class="btn" type="button" id="impOpen">Importar desde Excel</button><button class="btn dark" type="button" id="newProd">+ Nueva prenda</button></div></div>
-    <div class="row" style="margin-bottom:12px;gap:10px"><input type="search" id="admProdQ" value="${esc(ADM_Q)}" placeholder="Buscar por nombre o referencia" style="max-width:320px" aria-label="Buscar prenda">
+    <div class="row" style="margin-bottom:12px;gap:10px"><input type="search" id="admProdQ" value="${esc(ADM_Q)}" placeholder="Buscar por nombre o referencia" style="max-width:280px" aria-label="Buscar prenda">
+      <select id="admCat" aria-label="Filtrar por categoría" style="max-width:220px"><option value="">Todas las categorías</option>${CATS.slice(1).map(([k,l])=>{const n=PRODUCTS.filter(p=>inCat(p,k)).length;return n?`<option value="${esc(k)}"${ADM_CAT===k?" selected":""}>${esc(l)} (${n})</option>`:""}).join("")}</select>
+      ${ADM_CAT?(()=>{const subs={};PRODUCTS.filter(p=>inCat(p,ADM_CAT)).forEach(p=>(p.subs||[]).forEach(x=>subs[x]=(subs[x]||0)+1));const L=Object.entries(subs).sort((a,b)=>b[1]-a[1]);
+        return L.length?`<select id="admSub" aria-label="Filtrar por subcategoría" style="max-width:220px"><option value="">Todas las subcategorías</option>${L.map(([x,n])=>`<option value="${esc(x)}"${ADM_SUB===x?" selected":""}>${esc(x)} (${n})</option>`).join("")}</select>`:""})():""}
+      <select id="admVis" aria-label="Filtrar por visibilidad" style="max-width:160px"><option value="">Visibles y ocultas</option><option value="on"${ADM_VIS==="on"?" selected":""}>Solo visibles</option><option value="off"${ADM_VIS==="off"?" selected":""}>Solo ocultas</option></select>
       <label class="toggle" style="font-weight:500;font-size:14px"><input type="checkbox" id="admNoPh"${ADM_NOPH?" checked":""}> Solo sin fotos (${PRODUCTS.filter(p=>!p.off&&!photoCount(p)).length})</label><span class="dim">${PRODUCTS.length} prendas · ${PRODUCTS.filter(p=>!p.off).length} visibles</span></div>
     ${EDIT_PID?`<div class="step" style="margin-bottom:16px" id="npBox">${prodForm(editP)}</div>`:""}
     <div class="tbl"><table><thead><tr><th></th><th>Prenda</th><th>Categoría · forma</th><th>Precio de venta</th><th>Colores</th><th>Tallas</th><th>En la web</th><th></th></tr></thead><tbody>
-    ${admProdList().map((p,ix,arr)=>(ix===0||arr[ix-1].cat!==p.cat?`<tr class="noclick cathead"><td colspan="8">${esc(catLabel(p.cat))} · ${PRODUCTS.filter(x=>x.cat===p.cat).length}</td></tr>`:"")+`<tr class="noclick"><td style="width:56px"><svg viewBox="0 0 400 440" style="width:40px;height:auto" aria-hidden="true">${prodSVG(p,p.colors[0],"front","a"+p.id)}</svg></td>
+    ${(()=>{const L=admProdList();return L.map((p,ix,arr)=>((ADM_CAT?ix===0:(ix===0||arr[ix-1].cat!==p.cat))?`<tr class="noclick cathead"><td colspan="8">${ADM_CAT?`${esc(catLabel(ADM_CAT))}${ADM_SUB?" · "+esc(ADM_SUB):""} · ${L.length}${L.length>=ADM_LIM?"+":""}`:`${esc(catLabel(p.cat))} · ${PRODUCTS.filter(x=>x.cat===p.cat).length}`}</td></tr>`:"")+`<tr class="noclick"><td style="width:56px"><svg viewBox="0 0 400 440" style="width:40px;height:auto" aria-hidden="true">${prodSVG(p,p.colors[0],"front","a"+p.id)}</svg></td>
       <td><b>${esc(p.name)}</b></td><td>${esc(catLabel(p.cat))}<br><small class="dim">${esc(shapeInfo(p.shape).label)}</small></td>
       <td><input type="number" step="0.01" min="0" value="${p.price.toFixed(2)}" data-pprice="${p.id}" aria-label="Precio de ${esc(p.name)}"></td>
       <td><div class="dots">${p.colors.slice(0,8).map(k=>`<i style="background:${swBg(k)}" title="${esc(colorLabel(k))}"></i>`).join("")}${p.colors.length>8?`<small>+${p.colors.length-8}</small>`:""}</div></td>
@@ -3638,7 +3642,7 @@ function admCatalog(){
       <td style="white-space:nowrap">${DEL_ASK===p.id
         ?(clientUses(p.id)?`<span class="dim" style="color:var(--danger)">La usan ${clientUses(p.id)} producto(s) de clientes. Ocúltala en su lugar.</span> <button class="btn" type="button" data-pdelno style="padding:4px 10px;font-size:13px">Vale</button>`
           :`<button class="btn" type="button" data-pdelyes="${p.id}" style="padding:4px 10px;font-size:13px;color:var(--danger);border-color:var(--danger)">Eliminar definitivamente</button> <button class="btn" type="button" data-pdelno style="padding:4px 10px;font-size:13px">Cancelar</button>`)
-        :`<button class="btn" type="button" data-pphotos="${p.id}" style="padding:4px 10px;font-size:13px">Fotos${photoCount(p)?` · ${photoCount(p)}`:""}</button> <button class="btn" type="button" data-pedit="${p.id}" style="padding:4px 10px;font-size:13px">Editar</button> <button class="x" type="button" data-pdel="${p.id}" aria-label="Eliminar ${esc(p.name)}">×</button>`}</td></tr>`).join("")}
+        :`<button class="btn" type="button" data-pphotos="${p.id}" style="padding:4px 10px;font-size:13px">Fotos${photoCount(p)?` · ${photoCount(p)}`:""}</button> <button class="btn" type="button" data-pedit="${p.id}" style="padding:4px 10px;font-size:13px">Editar</button> <button class="x" type="button" data-pdel="${p.id}" aria-label="Eliminar ${esc(p.name)}">×</button>`}</td></tr>`).join("")})()}
     </tbody></table></div>${PRODUCTS.filter(p=>!ADM_Q||(p.name+" "+(p.ref||"")).toLowerCase().includes(ADM_Q.toLowerCase())).length>ADM_LIM?`<div style="text-align:center;margin-top:12px"><button class="btn" type="button" id="admMore">Ver más</button></div>`:""}<span class="savedmsg" id="catSaved" hidden>Guardado</span>`;
   if(EDIT_PID)$("#npBox").scrollIntoView({block:"nearest"});
 }
@@ -4005,6 +4009,9 @@ $("#admin").addEventListener("change",e=>{
   if(t.dataset.shtint!=null){const c=SHAPES_X.custom.find(x=>x.id===t.dataset.shtint);c.tint=t.checked;saveShapes();admAttrs();renderCats();$("#attrSaved").hidden=false}
   if(t.dataset.shsleeve!=null){const c=SHAPES_X.custom.find(x=>x.id===t.dataset.shsleeve);c.sleeves=t.checked;saveShapes();$("#attrSaved").hidden=false}
   if(t.id==="admNoPh"){ADM_NOPH=t.checked;ADM_LIM=60;admCatalog();return}
+  if(t.id==="admCat"){ADM_CAT=t.value;ADM_SUB="";ADM_LIM=60;admCatalog();return}
+  if(t.id==="admSub"){ADM_SUB=t.value;ADM_LIM=60;admCatalog();return}
+  if(t.id==="admVis"){ADM_VIS=t.value;ADM_LIM=60;admCatalog();return}
   if(t.id==="impFile"&&t.files[0]){const f=t.files[0];$("#impStatus").textContent="Leyendo el Excel… (un archivo grande tarda unos segundos)";
     readSupplierFile(f).then(data=>{IMP={fileName:f.name,data,opt:IMP&&IMP.opt||{mult:2,iva:true,hideDemo:true,renameColors:true}};
       if(impColIndex(data.hdr,"ref")<0||impColIndex(data.hdr,"price")<0){admImport();$("#impStatus").innerHTML=`<span style="color:var(--danger)">No encuentro las columnas de referencia o precio. Columnas del archivo: ${esc(data.hdr.join(", "))}</span>`;IMP.data={hdr:data.hdr,rows:[]};return}
