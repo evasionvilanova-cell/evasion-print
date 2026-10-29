@@ -1236,7 +1236,9 @@ function renderHome(){
       <span class="lab"><span><b>${esc(l)}</b><small>${n} prenda${n===1?"":"s"}</small></span><span class="arr"><i>→</i></span></span></button>`}).join("");
   $("#destacadas").hidden=!feat.length;
   const vis=PRODUCTS.filter(p=>!p.off);
-  let top=vis.filter(p=>p.featured||(p.featured==null&&p.tag)); if(top.length<4)top=[...top,...vis.filter(p=>!top.includes(p))].slice(0,8);
+  // primero las que se marcan a mano en Gestión (la última marcada delante); luego las novedades del proveedor
+  const pinned=vis.filter(p=>p.featured&&p.featAt).sort((a,b)=>b.featAt-a.featAt);
+  let top=[...pinned,...vis.filter(p=>!pinned.includes(p)&&(p.featured||(p.featured==null&&p.tag)))].slice(0,16); if(top.length<4)top=[...top,...vis.filter(p=>!top.includes(p))].slice(0,8);
   const rails=[{id:"top",eyebrow:"Lo más pedido",title:"Lo que más sale del taller",items:top}];
   feat.slice(0,2).forEach(([k,l])=>{const it=vis.filter(p=>inCat(p,k)).slice(0,16);if(it.length>=2)rails.push({id:k,eyebrow:l,title:`Lo mejor en ${l.toLowerCase()}`,items:it,cat:k})});
   $("#rails").innerHTML=rails.map(r=>`<section class="wrap rail-sec"><div class="rail-h"><div><span class="eyebrow">${esc(r.eyebrow)}</span><h2>${esc(r.title)}</h2></div>
@@ -4091,7 +4093,7 @@ $("#admin").addEventListener("submit",e=>{
     const pickedS=[...document.querySelectorAll(".npS:checked")].filter(x=>groups.includes(x.dataset.g)).map(x=>x.value);
     const allS=SIZE_GROUPS.filter(g=>groups.includes(g.id)).flatMap(g=>g.sizes);
     if(groups.length&&!pickedS.length){$("#npErr").textContent="Deja marcada al menos una talla.";return}
-    const data={sizeList:pickedS.length===allS.length?null:pickedS,minQty:Math.max(0,parseInt($("#npMin").value)||0),cat:$("#npCat").value,name,shape:$("#npShape").value,price,colors,sizes:groups,sport:$("#npSport").checked,tag:$("#npTag").value.trim(),featured:$("#npFeat").checked};
+    const data={sizeList:pickedS.length===allS.length?null:pickedS,minQty:Math.max(0,parseInt($("#npMin").value)||0),cat:$("#npCat").value,name,shape:$("#npShape").value,price,colors,sizes:groups,sport:$("#npSport").checked,tag:$("#npTag").value.trim(),featured:$("#npFeat").checked,featAt:$("#npFeat").checked?((prodById(EDIT_PID)||{}).featAt||Date.now()):0};
     {const old=(e.target.dataset.edit&&prodById(e.target.dataset.edit)||{}).info||{}, comp=$("#npComp").value.trim();
      data.desc=$("#npDesc").value.trim();
      data.info={...old,comp,gsm:(comp.match(/(\d{2,3})\s*g\/m/)||[])[1]||"",pack:+$("#npPack").value||0,box:+$("#npBox").value||0,taric:$("#npTaric").value.trim(),origin:$("#npOrigin").value.trim(),
