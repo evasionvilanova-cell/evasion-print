@@ -4,11 +4,12 @@ import { q } from "@/lib/db";
 import { shopHtml, loadKv, PUBLIC_KEYS, stripUsers, clientSlice } from "@/lib/shop";
 import { redsysConfig } from "@/lib/redsys";
 import { blobEnabled } from "@/lib/files";
+import { INVOICE_OF_ORDER, listInvoices, invoiceForShop } from "@/lib/invoices";
 
 export const dynamic = "force-dynamic";
 
 function orderForShop(r) {
-  return { ...r.data, ref: r.ref, total: +r.total, status: r.data.status || "nuevo", paid: r.paid, pay: r.pay, date: r.created_at.toISOString(), invoice: r.invoice || null };
+  return { ...r.data, ref: r.ref, total: +r.total, status: r.data.status || "nuevo", paid: r.paid, pay: r.pay, date: r.created_at.toISOString(), invoice: r.invoice || null, client: r.client || r.data.client || null };
 }
 
 export async function GET() {
@@ -25,7 +26,9 @@ export async function GET() {
     boot.adminEmail = session.email;
     if (kv.ep_clients) boot.kv.ep_clients = stripUsers(kv.ep_clients);
     if (kv.ep_admin) boot.kv.ep_admin = stripUsers(kv.ep_admin);
-    const o = await q("select o.ref,o.status,o.paid,o.total,o.pay,o.data,o.state,o.created_at,i.number invoice from orders o left join invoices i on i.ref=o.ref where o.paid or o.pay not in ('card','bizum') order by o.created_at desc limit 2000");
+    const o = await q(`select o.ref,o.status,o.paid,o.total,o.pay,o.data,o.state,o.created_at,o.client,${INVOICE_OF_ORDER} invoice from orders o where o.paid or o.pay not in ('card','bizum') order by o.created_at desc limit 2000`);
+    boot.invoices = await listInvoices();
+    boot.mail = !!process.env.RESEND_API_KEY;
     boot.orders = o.rows.map(orderForShop);
     o.rows.forEach((r) => { if (r.state && Object.keys(r.state).length) boot.ostate[r.ref] = r.state; });
     const qs = await q("select data from quotes order by created_at desc limit 1000");
@@ -35,13 +38,14 @@ export async function GET() {
     boot.session = { key: session.client, email: session.email, name: session.name };
     (await q("select key,url from files where key like $1", [`cl_${session.client}_%`])).rows.forEach((f) => { boot.files[f.key] = f.url; });
     const o = await q(
-      `select o.ref,o.status,o.paid,o.total,o.pay,o.data,o.state,o.created_at,i.number invoice
-       from orders o left join invoices i on i.ref=o.ref where o.client=$1 and (o.paid or o.pay not in ('card','bizum')) and coalesce(o.state->>'status',o.status)<>'cancelado' order by o.created_at desc limit 500`,
+      `select o.ref,o.status,o.paid,o.total,o.pay,o.data,o.state,o.created_at,${INVOICE_OF_ORDER} invoice
+       from orders o where o.client=$1 and (o.paid or o.pay not in ('card','bizum')) and coalesce(o.state->>'status',o.status)<>'cancelado' order by o.created_at desc limit 500`,
       [session.client]);
     // los costes son solo para Gestión
     const noCost = (items) => (items || []).map(({ cost, ...i }) => i);
     boot.myOrders = o.rows.map((r) => { const x = { ...orderForShop(r), ...(r.state || {}), invoice: r.invoice || null }; x.items = noCost(x.items); return x; });
     const mq = await q("select data from quotes where data->>'client'=$1 and data->>'status' in ('enviado','aceptado') and data ? 'answer' order by created_at desc limit 200", [session.client]);
+    boot.myInvoices = (await q("select number,kind,refs,status,rect_of,client,data,created_at,sent_at from invoices where client=$1 or refs && (select coalesce(array_agg(ref),'{}') from orders where client=$1) order by created_at desc limit 500", [session.client])).rows.map(invoiceForShop).map(({ token, ...x }) => x);
     boot.myQuotes = mq.rows.map((r) => { const { lineCosts, ...x } = r.data; return x; }).filter((x) => x.answer && x.answer.total);
     const keys = new Set();
     const addKeys = (it) => ((it && it.design && it.design.els) || []).forEach((e) => [e.file, e.mask, e.orig].forEach((k) => k && keys.add(k)));

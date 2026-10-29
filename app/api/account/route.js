@@ -3,7 +3,7 @@ import { q, db } from "@/lib/db";
 import { getSession, checkPassword, hashPassword, tooManyAttempts, recordFailure, clientIp } from "@/lib/auth";
 import { json, fail, body } from "@/lib/http";
 import { loadKv } from "@/lib/shop";
-import { orderLines } from "@/lib/orders";
+import { createInvoice, cleanBilling, InvoiceError } from "@/lib/invoices";
 
 const str = (v, n = 200) => String(v ?? "").trim().slice(0, n);
 
@@ -65,27 +65,11 @@ export async function POST(req) {
     // Genera la factura de un pedido (una sola vez; después siempre se descarga la misma)
     const o = (await q("select ref,client,paid,pay,total,data,state from orders where ref=$1", [str(d.ref, 40)])).rows[0];
     if (!o || (!admin && o.client !== s.client) || !(o.paid || !["card", "bizum"].includes(o.pay))) return fail("No encuentro ese pedido en tu área.", 404);
-    const has = (await q("select number from invoices where ref=$1", [o.ref])).rows[0];
-    if (has) return json({ ok: true, number: has.number });
-    const b = d.billing || {};
-    const billing = { name: str(b.name, 160), cif: str(b.cif, 30).toUpperCase(), addr: str(b.addr, 200), zip: str(b.zip, 10), city: str(b.city, 80), province: str(b.province, 80) };
-    if (!billing.name || !billing.cif || !billing.addr || !billing.zip || !billing.city) return fail("Para la factura faltan la razón social, el NIF/CIF o la dirección.");
-    const p = await db();
-    const cx = await p.connect();
     try {
-      await cx.query("begin");
-      await cx.query("select pg_advisory_xact_lock(4242)");
-      const again = (await cx.query("select number from invoices where ref=$1", [o.ref])).rows[0];
-      if (again) { await cx.query("commit"); return json({ ok: true, number: again.number }); }
-      const year = new Date().getFullYear();
-      const seq = (await cx.query("select coalesce(max(seq),0)+1 n from invoices where year=$1", [year])).rows[0].n;
-      const number = `W${String(year).slice(2)}-${String(seq).padStart(4, "0")}`;
-      await cx.query("insert into invoices(number,ref,year,seq,data) values($1,$2,$3,$4,$5)",
-        [number, o.ref, year, seq, JSON.stringify({ billing, date: new Date().toISOString(), lines: orderLines({ ...o.data, ...(o.state || {}) }) })]);
-      await cx.query("commit");
-      if (!admin) await saveClient(s.client, (c) => { c.billing = c.billing && c.billing.cif ? c.billing : billing; }).catch(() => {});
-      return json({ ok: true, number });
-    } catch (e) { await cx.query("rollback").catch(() => {}); throw e; } finally { cx.release(); }
+      const r = await createInvoice({ refs: [o.ref], billing: d.billing, onlyClient: admin ? null : s.client });
+      if (!admin && !r.existed) await saveClient(s.client, (c) => { c.billing = c.billing && c.billing.cif ? c.billing : cleanBilling(d.billing); }).catch(() => {});
+      return json({ ok: true, number: r.number });
+    } catch (e) { if (e instanceof InvoiceError) return fail(e.message); throw e; }
   }
   return fail("Acción no válida.");
 }
