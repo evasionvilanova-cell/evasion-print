@@ -3346,6 +3346,14 @@ document.addEventListener("click",e=>{const b=e.target.closest("[data-cduo]");if
   savePalette();renderCats();admAttrs()});
 // dos tonos automáticos para los nombres con «/» (p. ej. «Gris/Amarillo Flúor»)
 function autoDuo(name,known){const parts=String(name).split("/").map(x=>x.trim()).filter(Boolean);return parts.length>1?guessHex(parts[1],known):null}
+/* Atributos → Colores: buscador por referencia o nombre */
+let COLQ="";
+function filterColors(focus){const inp=$("#colQ"),g=$("#colGrid");if(!inp||!g)return;COLQ=inp.value;const q=normC(COLQ);let n=0,first=null;
+  g.querySelectorAll(".colcard").forEach(el=>{const ok=!q||el.dataset.cref===q||el.dataset.cref.startsWith(q)||el.dataset.cq.includes(q);el.hidden=!ok;if(ok){n++;first=first||el}});
+  $("#colQn").textContent=q?`${n} de ${PALETTE.length}`:"";
+  if(focus&&first){first.scrollIntoView({block:"center"});const t=first.querySelector("[data-cname]");if(t)t.focus()}}
+document.addEventListener("input",e=>{if(e.target.id==="colQ")filterColors()});
+document.addEventListener("keydown",e=>{if(e.target.id==="colQ"&&e.key==="Enter"){e.preventDefault();filterColors(true)}});
 function newClientSheet(){
   $("#sheetRoot").innerHTML=`<div class="sheet" role="dialog" aria-label="Nuevo cliente"><div class="wrap" style="max-width:640px">
     <button class="btn" type="button" data-back>← Clientes</button>
@@ -3837,8 +3845,9 @@ function admAttrs(){
         <button class="btn primary" type="submit">+ Añadir color</button>
       </form>
       <div class="err" id="ncolErr" style="color:var(--danger);font-size:14px"></div>
-      <div class="colgrid">${PALETTE.map(([c,n,h,h0],i)=>{const used=PRODUCTS.filter(p=>p.colors.includes(c)).length,h2=COLORS[c][2];
-        return `<div class="colcard"><span class="duo"><input type="color" value="${h}" data-chex="${i}" aria-label="Color de la referencia ${esc(c)}">${h2?`<input type="color" value="${h2}" data-chex2="${i}" aria-label="Segundo tono de ${esc(c)}"><button class="linkbtn" type="button" data-cduo="${i}" title="Quitar el segundo tono">− tono</button>`:`<button class="linkbtn" type="button" data-cduo="${i}" title="Añadir un segundo tono (colores combinados como Gris/Negro)">+ tono</button>`}</span>
+      <div class="row" style="margin:10px 0;align-items:center;gap:10px"><input type="search" id="colQ" value="${esc(COLQ)}" placeholder="Buscar color por referencia o nombre (p. ej. 157 o España)" aria-label="Buscar color" style="flex:1 1 280px"><span class="dim" id="colQn" style="font-size:13px"></span></div>
+      <div class="colgrid" id="colGrid">${PALETTE.map(([c,n,h,h0],i)=>{const used=PRODUCTS.filter(p=>p.colors.includes(c)).length,h2=COLORS[c][2];
+        return `<div class="colcard" data-cq="${esc(normC(c+" "+n))}" data-cref="${esc(normC(c))}"><span class="duo"><input type="color" value="${h}" data-chex="${i}" aria-label="Color de la referencia ${esc(c)}">${h2?`<input type="color" value="${h2}" data-chex2="${i}" aria-label="Segundo tono de ${esc(c)}"><button class="linkbtn" type="button" data-cduo="${i}" title="Quitar el segundo tono">− tono</button>`:`<button class="linkbtn" type="button" data-cduo="${i}" title="Añadir un segundo tono (colores combinados como Gris/Negro)">+ tono</button>`}</span>
           <div style="min-width:0;flex:1"><span class="mono" style="font-size:12px;color:var(--muted)">Ref. ${esc(c)} · ${used} prenda${used===1?"":"s"}</span>
           <input type="text" value="${esc(n)}" data-cname="${i}" aria-label="Nombre de la referencia ${esc(c)}"></div>
           ${COL_ASK===c?`<button class="btn" type="button" data-cdelyes="${esc(c)}" style="padding:4px 8px;font-size:12px;color:var(--danger);border-color:var(--danger)">${used?"Quitar de "+used:"Eliminar"}</button>`:`<button class="x" type="button" data-cdel="${esc(c)}" aria-label="Eliminar ${esc(n)}">×</button>`}</div>`}).join("")}</div>
@@ -3860,6 +3869,7 @@ function admAttrs(){
       </form>
       <div class="err" id="ngErr" style="color:var(--danger);font-size:14px"></div>
     </section>`;
+  filterColors();
 }
 function admRates(){
   const R=RATES, inp=(path,val,lbl)=>`<label class="field"><span>${lbl}</span><input type="number" step="0.01" min="0" data-rate="${path}" value="${(+val).toFixed(2)}"></label>`;
@@ -3940,7 +3950,9 @@ $("#admin").addEventListener("submit",e=>{
     return}
   if(e.target.id==="ncolForm"){const c=$("#ncCode").value.trim(),n=$("#ncName").value.trim(),h=$("#ncHex").value,err=[];
     if(!c)err.push("Escribe la referencia del proveedor.");else if(PALETTE.some(x=>x[0]===c))err.push(`La referencia ${c} ya existe.`);if(!n)err.push("Pon un nombre al color.");
-    if(err.length){$("#ncolErr").innerHTML=err.map(esc).join("<br>");return}
+    if(err.length){$("#ncolErr").innerHTML=err.map(esc).join("<br>");
+      if(c&&PALETTE.some(x=>x[0]===c)){$("#ncolErr").innerHTML+=` · <button class="linkbtn" type="button" id="colGo">Ver y editar la referencia ${esc(c)}</button>`;$("#colGo").onclick=()=>{$("#colQ").value=c;filterColors(true)}}
+      return}
     PALETTE=[...PALETTE,[c,n,h]];savePalette();admAttrs();$("#attrSaved").hidden=false;}
   if(e.target.id==="ngForm"){const l=$("#ngLabel").value.trim(),sz=[...new Set($("#ngSizes").value.split(",").map(x=>x.trim()).filter(Boolean))],err=[];
     if(!l)err.push("Pon nombre al grupo.");if(!sz.length)err.push("Escribe al menos una talla.");
