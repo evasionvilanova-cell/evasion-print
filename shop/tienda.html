@@ -467,6 +467,8 @@ form.step>.field,#addrBox>.field,#addrBox>.row{flex:none}
 .subtabs .chip[aria-pressed="true"]{background:var(--accent,#1846d1);border-color:var(--accent,#1846d1);color:#fff}
 @media (max-width:640px){#catSearch{width:100%!important}.cattabs .chip{font-size:15px;padding:10px 16px}}
 .flagsw{display:block;width:40px;height:26px;border-radius:4px;border:1px solid var(--line)}
+.tsizes{display:flex;flex-direction:column;gap:6px;margin:0 0 14px}.tsz{display:flex;flex-direction:column;gap:2px;font-size:13px}.tsz input{width:100%}
+.layer[data-tl]{cursor:move;touch-action:none}
 .tfonts{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:6px;margin-top:4px}
 .tfont{border:1px solid var(--line,#ddd);background:#fff;border-radius:8px;padding:8px 4px 6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;color:inherit}
 .tfont b{font-size:20px;line-height:1.1;white-space:nowrap}.tfont small{font-size:11px;opacity:.7}
@@ -793,6 +795,7 @@ footer{background:var(--surface);margin-top:40px}
           <div class="field" style="flex:1"><span>Tipografía de nombre y número</span>
             <div class="tfonts" id="tStyle" role="radiogroup" aria-label="Tipografía de nombre y número"></div></div>
         </div>
+        <div id="tSizes" class="tsizes"></div>
         <div class="label" style="margin-bottom:6px">Color del vinilo · <span id="vinylName"></span></div>
         <div class="swatches" id="vColors" style="margin-bottom:14px"></div>
         <div class="tablewrap">
@@ -1465,10 +1468,10 @@ function renderCanvas(){
   if(T.on){
     const s=teamSample(), v=vinyl(T.vinyl), f=ff(T.style||"block"), fw=fontOf(T.style||"block").w, ts=textShadow(v);
     if(S.side==="back"){
-      if(T.name&&s.name) h+=`<div class="layer fixed" style="left:50%;top:21%;font-family:${f};font-weight:${fw};color:${v[2]};font-size:calc(var(--u) * ${(6.5*CM*1.38).toFixed(2)});letter-spacing:.04em;${ts}">${esc(s.name)}</div>`;
-      if(T.numB&&s.num) h+=`<div class="layer fixed" style="left:50%;top:${T.name?44:38}%;font-family:${f};font-weight:${fw};color:${v[2]};font-size:calc(var(--u) * ${(20*CM*1.38).toFixed(2)});${ts}">${esc(s.num)}</div>`;
-    }else if(T.numF&&s.num){
-      h+=`<div class="layer fixed" style="left:36%;top:31%;font-family:${f};font-weight:${fw};color:${v[2]};font-size:calc(var(--u) * ${(8*CM*1.38).toFixed(2)});${ts}">${esc(s.num)}</div>`;
+      if(T.name&&s.name){const l=TL(T,"name");h+=`<div class="layer${S.sel==="tl:name"?" sel":""}" data-tl="name" title="Arrastra para moverlo" style="left:${l.x}%;top:${l.y}%;font-family:${f};font-weight:${fw};color:${v[2]};font-size:calc(var(--u) * ${(l.h*CM*1.38).toFixed(2)});letter-spacing:.04em;${ts}">${esc(s.name)}</div>`}
+      if(T.numB&&s.num){const l=TL(T,"numB");h+=`<div class="layer${S.sel==="tl:numB"?" sel":""}" data-tl="numB" title="Arrastra para moverlo" style="left:${l.x}%;top:${l.y}%;font-family:${f};font-weight:${fw};color:${v[2]};font-size:calc(var(--u) * ${(l.h*CM*1.38).toFixed(2)});${ts}">${esc(s.num)}</div>`}
+    }else if(T.numF&&s.num){const l=TL(T,"numF");
+      h+=`<div class="layer${S.sel==="tl:numF"?" sel":""}" data-tl="numF" title="Arrastra para moverlo" style="left:${l.x}%;top:${l.y}%;font-family:${f};font-weight:${fw};color:${v[2]};font-size:calc(var(--u) * ${(l.h*CM*1.38).toFixed(2)});${ts}">${esc(s.num)}</div>`;
     }
   }
   $("#layers").innerHTML=h;
@@ -1482,6 +1485,9 @@ document.querySelector(".seg").addEventListener("click",e=>{const b=e.target.clo
 // arrastrar
 let drag=null;
 $("#layers").addEventListener("pointerdown",e=>{
+  const TLn=e.target.closest(".layer[data-tl]");
+  if(TLn){e.preventDefault();drag={tl:TLn.dataset.tl,node:TLn,r:$("#canvas").getBoundingClientRect()};TLn.setPointerCapture(e.pointerId);S.sel="tl:"+TLn.dataset.tl;
+    document.querySelectorAll(".layer").forEach(n=>n.classList.toggle("sel",n===TLn));return}
   const L=e.target.closest(".layer[data-id]");if(!L)return;
   e.preventDefault(); const r=$("#canvas").getBoundingClientRect();
   drag={id:L.dataset.id,node:L,r}; L.setPointerCapture(e.pointerId); S.sel=L.dataset.id;
@@ -1489,12 +1495,16 @@ $("#layers").addEventListener("pointerdown",e=>{
   document.querySelectorAll(".el").forEach(n=>n.classList.toggle("sel",n.dataset.id===S.sel));
 });
 $("#layers").addEventListener("pointermove",e=>{
-  if(!drag)return; const el=S.els.find(x=>x.id===drag.id);
+  if(!drag)return;
+  if(drag.tl){const T=S.team;T.lay=T.lay||{};const cur=TL(T,drag.tl);
+    const x=Math.max(8,Math.min(92,(e.clientX-drag.r.left)/drag.r.width*100)),y=Math.max(6,Math.min(94,(e.clientY-drag.r.top)/drag.r.height*100));
+    T.lay[drag.tl]={...cur,x:Math.abs(x-50)<1.5&&drag.tl!=="numF"?50:x,y};drag.node.style.left=T.lay[drag.tl].x+"%";drag.node.style.top=y+"%";return}
+  const el=S.els.find(x=>x.id===drag.id);
   el.x=Math.max(8,Math.min(92,(e.clientX-drag.r.left)/drag.r.width*100));
   el.y=Math.max(6,Math.min(94,(e.clientY-drag.r.top)/drag.r.height*100));
   el.place="libre"; drag.node.style.left=el.x+"%"; drag.node.style.top=el.y+"%";
 });
-const endDrag=()=>{if(drag){drag=null;renderEls()}};
+const endDrag=()=>{if(drag){const t=drag.tl;drag=null;if(t){renderTeam();renderCanvas()}else renderEls()}};
 $("#layers").addEventListener("pointerup",endDrag);$("#layers").addEventListener("pointercancel",endDrag);
 
 /* ============ PASO 1: color ============ */
@@ -1697,6 +1707,9 @@ function renderTeam(){
   const T=S.team;
   $("#teamOn").checked=T.on; $("#teamBody").hidden=!T.on;
   $("#tName").checked=T.name;$("#tNumB").checked=T.numB;$("#tNumF").checked=T.numF;
+  $("#tSizes").innerHTML=["name","numB","numF"].filter(k=>T[k]).map(k=>{const d=TL_DEF[k],l=TL(T,k);
+    return `<label class="tsz"><span>${d.label} · <b>${fmtCm(l.h)} cm</b> de alto</span><input type="range" min="${d.min}" max="${d.max}" step="0.5" value="${l.h}" data-tsz="${k}" aria-label="Altura de ${d.label}"></label>`}).join("")
+    +(T.lay&&Object.keys(T.lay).length?`<button class="linkbtn" type="button" id="tLayReset">Volver a la posición y medida reglamentaria</button>`:`<small class="dim">Arrastra el nombre o el número en la prenda para moverlo.</small>`);
   $("#tStyle").innerHTML=TEAM_FONTS().map(f=>{const nm=f.k==="block"?"Bloque":f.k==="college"?"College":f.label;
     return `<button type="button" role="radio" aria-checked="${T.style===f.k}" class="tfont${T.style===f.k?" on":""}" data-tf="${f.k}" title="${esc(nm)}"><b style="font-family:${f.family};font-weight:${f.w}">10 GARCÍA</b><small>${esc(nm)}</small></button>`}).join("");
   $("#teamAside").textContent=S.product.sport?"Vinilo termoadhesivo":"Opcional";
@@ -1716,6 +1729,10 @@ function renderTeam(){
 }
 $("#teamOn").addEventListener("change",e=>{S.team.on=e.target.checked;if(S.team.on&&!S.team.rows.length)S.team.rows.push({id:uid(),size:"M",name:"",num:""});if(S.team.on)S.side="back";renderAll()});
 ["tName","tNumB","tNumF"].forEach(id=>$("#"+id).addEventListener("change",e=>{const k={tName:"name",tNumB:"numB",tNumF:"numF"}[id];S.team[k]=e.target.checked;S.side=k==="numF"?"front":"back";renderTeam();renderCanvas();renderTill()}));
+$("#tSizes").addEventListener("input",e=>{const k=e.target.dataset.tsz;if(!k)return;const T=S.team;T.lay=T.lay||{};T.lay[k]={...TL(T,k),h:+e.target.value};
+  const sp=e.target.parentNode.querySelector("b");if(sp)sp.textContent=fmtCm(+e.target.value)+" cm";S.side=k==="numF"?"front":"back";renderCanvas()});
+$("#tSizes").addEventListener("change",e=>{if(e.target.dataset.tsz)renderTeam()});
+$("#tSizes").addEventListener("click",e=>{if(e.target.id!=="tLayReset")return;delete S.team.lay;renderTeam();renderCanvas()});
 $("#tStyle").addEventListener("click",e=>{const b=e.target.closest("[data-tf]");if(!b)return;S.team.style=b.dataset.tf;renderTeam();renderCanvas()});
 $("#vColors").addEventListener("click",e=>{const v=e.target.closest("[data-v]");if(!v)return;S.team.vinyl=v.dataset.v;S.side="back";renderTeam();renderCanvas();renderTill()});
 $("#rows").addEventListener("input",e=>{const tr=e.target.closest("tr"),r=S.team.rows.find(x=>x.id===tr.dataset.id),f=e.target.dataset.f;
@@ -1828,10 +1845,13 @@ function snapshotDesign(id,pid,color,els,team){
 function boxOf(e){const k=400/440;
   if(e.kind==="logo")return {side:e.side,x:e.x,y:e.y,w:e.w*CM,h:e.w*(e.ar||1)*CM*k};
   const wcm=e.wcm!=null?e.wcm:textCm(e).w;return {side:e.side,x:e.x,y:e.y,w:wcm*CM,h:e.h*CM*k}}
+/* posición y altura (cm) de nombre y números; el cliente puede moverlos y cambiar el tamaño */
+const TL_DEF={name:{x:50,y:21,h:6.5,min:3,max:12,label:"Nombre"},numB:{x:50,y:44,h:20,min:8,max:30,label:"Número espalda"},numF:{x:36,y:31,h:8,min:4,max:20,label:"Número delante"}};
+function TL(T,k){const d=TL_DEF[k],o=(T&&T.lay&&T.lay[k])||{};const y0=k==="numB"&&!T.name?38:d.y;return {x:o.x??d.x,y:o.y??y0,h:o.h??d.h}}
 function teamBoxes(T){const b=[],k=400/440;if(!T)return b;
-  if(T.name)b.push({label:"el nombre",side:"back",x:50,y:21,w:44,h:6.5*CM*k});
-  if(T.numB)b.push({label:"el número de la espalda",side:"back",x:50,y:T.name?44:38,w:34,h:20*CM*k});
-  if(T.numF)b.push({label:"el número de delante",side:"front",x:36,y:31,w:14,h:8*CM*k});return b}
+  if(T.name){const l=TL(T,"name");b.push({label:"el nombre",side:"back",x:l.x,y:l.y,w:44*l.h/6.5,h:l.h*CM*k})}
+  if(T.numB){const l=TL(T,"numB");b.push({label:"el número de la espalda",side:"back",x:l.x,y:l.y,w:34*l.h/20,h:l.h*CM*k})}
+  if(T.numF){const l=TL(T,"numF");b.push({label:"el número de delante",side:"front",x:l.x,y:l.y,w:14*l.h/8,h:l.h*CM*k})}return b}
 const hit=(a,b)=>a.side===b.side&&Math.abs(a.x-b.x)<(a.w+b.w)/2&&Math.abs(a.y-b.y)<(a.h+b.h)/2;
 function overlaps(els,T){const out=[];teamBoxes(T).forEach(tb=>els.forEach(e=>{if(hit(boxOf(e),tb))out.push(`${e.kind==="logo"?"El logo «"+(e.name||"")+"»":"El texto «"+e.text+"»"} se solapa con ${tb.label}`)}));return out}
 const NECK_Y={front:12,back:10}; // % de alto del lienzo donde está el cuello
@@ -1860,7 +1880,7 @@ function addToCart(){
   if(Q.discount)bk.push({l:`Descuento por cantidad (−${Math.round(Q.pct*100)} %)`,d:"",a:-Q.discount});
   if(Q.setup)bk.push({l:`Clichés de serigrafía (${seriCount(S.els)} × ${eur(DECO.cliche)} + IVA)`,d:"pago único",a:Q.setup});
   const cid="L"+Date.now();
-  const design=snapshotDesign(cid,S.product.id,S.color,S.els,S.team.on?{on:true,name:S.team.name,numB:S.team.numB,numF:S.team.numF,style:S.team.style,vinyl:S.team.vinyl}:null);
+  const design=snapshotDesign(cid,S.product.id,S.color,S.els,S.team.on?{on:true,name:S.team.name,numB:S.team.numB,numF:S.team.numF,style:S.team.style,vinyl:S.team.vinyl,...(S.team.lay?{lay:JSON.parse(JSON.stringify(S.team.lay))}:{})}:null);
   cart.push({id:cid,design,q:S.team.on?null:{...qtyBySize()},bk:bk.map(x=>({...x,a:Math.round(x.a*100)/100})),pid:S.product.id,name:S.product.name,shape:S.product.shape,color:S.color,qty:Q.qty,total:+Q.total.toFixed(2),days:Q.days,sizes,parts,
     roster:S.team.on?S.team.rows.map(r=>({size:r.size,name:r.name,num:r.num})):null,
     files:S.els.filter(e=>e.kind==="logo").map(e=>e.name)});
@@ -2654,9 +2674,10 @@ function designMock(i,side,uid){
     else{const v=vinyl(e.vinyl);h+=`<div class="layer" style="left:${e.x}%;top:${e.y}%;font-family:${ff(e.font)};font-weight:${fontOf(e.font).w};color:${v[2]};font-size:calc(var(--u) * ${(e.h*CM*1.38).toFixed(2)})">${esc(e.text)}</div>`}
   });
   const T=d.team; if(T){const r=(i.roster||[]).find(r=>r.name||r.num)||{name:"NOMBRE",num:"10"},v=vinyl(T.vinyl),f=ff(T.style||"block"),fw=fontOf(T.style||"block").w;
-    if(side==="back"){if(T.name&&r.name)h+=`<div class="layer" style="left:50%;top:21%;font-family:${f};font-weight:${fw};color:${v[2]};font-size:calc(var(--u) * ${(6.5*CM*1.38).toFixed(2)});letter-spacing:.04em">${esc(r.name)}</div>`;
-      if(T.numB&&r.num)h+=`<div class="layer" style="left:50%;top:${T.name?44:38}%;font-family:${f};font-weight:${fw};color:${v[2]};font-size:calc(var(--u) * ${(20*CM*1.38).toFixed(2)})">${esc(r.num)}</div>`}
-    else if(T.numF&&r.num)h+=`<div class="layer" style="left:36%;top:31%;font-family:${f};font-weight:${fw};color:${v[2]};font-size:calc(var(--u) * ${(8*CM*1.38).toFixed(2)})">${esc(r.num)}</div>`}
+    const Ln=TL(T,"name"),Lb=TL(T,"numB"),Lf=TL(T,"numF");
+    if(side==="back"){if(T.name&&r.name)h+=`<div class="layer" style="left:${Ln.x}%;top:${Ln.y}%;font-family:${f};font-weight:${fw};color:${v[2]};font-size:calc(var(--u) * ${(Ln.h*CM*1.38).toFixed(2)});letter-spacing:.04em">${esc(r.name)}</div>`;
+      if(T.numB&&r.num)h+=`<div class="layer" style="left:${Lb.x}%;top:${Lb.y}%;font-family:${f};font-weight:${fw};color:${v[2]};font-size:calc(var(--u) * ${(Lb.h*CM*1.38).toFixed(2)})">${esc(r.num)}</div>`}
+    else if(T.numF&&r.num)h+=`<div class="layer" style="left:${Lf.x}%;top:${Lf.y}%;font-family:${f};font-weight:${fw};color:${v[2]};font-size:calc(var(--u) * ${(Lf.h*CM*1.38).toFixed(2)})">${esc(r.num)}</div>`}
   return h;
 }
 /* ===== Edición del pedido en la tienda: quitar elementos y calcular la devolución ===== */
@@ -2716,9 +2737,9 @@ function designDetail(i,ref,n){
   }));
   const T=d.team;
   if(T){const v=vinyl(T.vinyl), st="letra "+fontOf(T.style||"block").label;
-    if(T.name)rows.push(`<div class="pd"><div class="pd-file"><span class="pd-thumb txt">ABC</span></div><div><b>Detrás · Nombre</b> (uno por prenda, ver lista)<div>Vinilo <b>${v[0]} ${v[1]}</b> · ${st} · letra de 6,5 cm de alto</div><div class="dim">Centrado, a ${fmtCm(cmY(21,"back"))} cm bajo el cuello</div>${ref?rowActions(ref,n,"team:name",i,false):""}</div></div>`);
-    if(T.numB)rows.push(`<div class="pd"><div class="pd-file"><span class="pd-thumb txt">10</span></div><div><b>Detrás · Número</b><div>Vinilo <b>${v[0]} ${v[1]}</b> · ${st} · 20 cm de alto (15 cm en tallas infantiles)</div><div class="dim">Centrado, centro del número a ${fmtCm(cmY(T.name?44:38,"back"))} cm bajo el cuello</div>${ref?rowActions(ref,n,"team:numB",i,false):""}</div></div>`);
-    if(T.numF)rows.push(`<div class="pd"><div class="pd-file"><span class="pd-thumb txt">10</span></div><div><b>Delante · Número</b><div>Vinilo <b>${v[0]} ${v[1]}</b> · ${st} · 8 cm de alto</div><div class="dim">${posText({x:36,y:31,side:"front"})}</div>${ref?rowActions(ref,n,"team:numF",i,false):""}</div></div>`);}
+    if(T.name)rows.push(`<div class="pd"><div class="pd-file"><span class="pd-thumb txt">ABC</span></div><div><b>Detrás · Nombre</b> (uno por prenda, ver lista)<div>Vinilo <b>${v[0]} ${v[1]}</b> · ${st} · letra de ${fmtCm(TL(T,"name").h)} cm de alto</div><div class="dim">${posText({...TL(T,"name"),side:"back"})}</div>${ref?rowActions(ref,n,"team:name",i,false):""}</div></div>`);
+    if(T.numB)rows.push(`<div class="pd"><div class="pd-file"><span class="pd-thumb txt">10</span></div><div><b>Detrás · Número</b><div>Vinilo <b>${v[0]} ${v[1]}</b> · ${st} · ${fmtCm(TL(T,"numB").h)} cm de alto${TL(T,"numB").h>15?" (15 cm en tallas infantiles)":""}</div><div class="dim">${posText({...TL(T,"numB"),side:"back"})}</div>${ref?rowActions(ref,n,"team:numB",i,false):""}</div></div>`);
+    if(T.numF)rows.push(`<div class="pd"><div class="pd-file"><span class="pd-thumb txt">10</span></div><div><b>Delante · Número</b><div>Vinilo <b>${v[0]} ${v[1]}</b> · ${st} · ${fmtCm(TL(T,"numF").h)} cm de alto</div><div class="dim">${posText({...TL(T,"numF"),side:"front"})}</div>${ref?rowActions(ref,n,"team:numF",i,false):""}</div></div>`);}
   const ov=d.team?overlaps(d.els,d.team):[];
   return `${ov.map(m=>`<div class="note warn" style="margin-top:8px">⚠ ${esc(m)}. Confírmalo con el cliente en la revisión.</div>`).join("")}<div class="pd-mocks"><figure><div class="mini">${designMock(i,"front","dmf"+i.id)}</div><figcaption>Delante</figcaption></figure><figure><div class="mini">${designMock(i,"back","dmb"+i.id)}</div><figcaption>Detrás</figcaption></figure></div>
     <div class="pd-list">${rows.join("")||`<span class="dim">Prenda sin personalizar.</span>`}</div>
