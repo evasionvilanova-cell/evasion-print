@@ -466,6 +466,7 @@ form.step>.field,#addrBox>.field,#addrBox>.row{flex:none}
 .subtabs{margin:4px 0 18px;gap:6px}.subtabs .chip{font-size:14px;padding:8px 14px;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
 .subtabs .chip[aria-pressed="true"]{background:var(--accent,#1846d1);border-color:var(--accent,#1846d1);color:#fff}
 @media (max-width:640px){#catSearch{width:100%!important}.cattabs .chip{font-size:15px;padding:10px 16px}}
+.flagsw{display:block;width:40px;height:26px;border-radius:4px;border:1px solid var(--line)}
 .tfonts{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:6px;margin-top:4px}
 .tfont{border:1px solid var(--line,#ddd);background:#fff;border-radius:8px;padding:8px 4px 6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;color:inherit}
 .tfont b{font-size:20px;line-height:1.1;white-space:nowrap}.tfont small{font-size:11px;opacity:.7}
@@ -910,7 +911,31 @@ function rebuildColors(){for(const k in COLOR_STORE)delete COLOR_STORE[k];let kn
     COLOR_STORE[c]=h2?[n,h,h2]:[n,h]})}
 /* colores de dos tonos (p. ej. Gris/Negro): la muestra sale partida en diagonal */
 const duoBg=(h,h2)=>h2?`linear-gradient(135deg,${h} 50%,${h2} 50%)`:h;
-const swBg=k=>duoBg(COLORS[k][1],COLORS[k][2]);
+/* banderas: si el nombre del color es un país, la muestra sale con su bandera */
+const FLAGS=(()=>{const h=(...c)=>c.map((x,i)=>`<rect y='${i*20/c.length}' width='30' height='${20/c.length+.1}' fill='${x}'/>`).join(""),
+  v=(...c)=>c.map((x,i)=>`<rect x='${i*30/c.length}' width='${30/c.length+.1}' height='20' fill='${x}'/>`).join("");
+  return [
+  [/espana|spain/,`<rect width='30' height='20' fill='#c60b1e'/><rect y='5' width='30' height='10' fill='#ffc400'/>`],
+  [/francia|france/,v("#0055a4","#fff","#ef4135")],
+  [/italia|italy/,v("#009246","#fff","#ce2b37")],
+  [/alemania|germany/,h("#000","#dd0000","#ffce00")],
+  [/portugal/,`<rect width='30' height='20' fill='#da291c'/><rect width='12' height='20' fill='#046a38'/><circle cx='12' cy='10' r='3.6' fill='#ffe900'/>`],
+  [/reino unido|united kingdom|gran bretana|\buk\b/,`<rect width='30' height='20' fill='#012169'/><path d='M0 0L30 20M30 0L0 20' stroke='#fff' stroke-width='4'/><path d='M0 0L30 20M30 0L0 20' stroke='#c8102e' stroke-width='1.6'/><path d='M15 0V20M0 10H30' stroke='#fff' stroke-width='6'/><path d='M15 0V20M0 10H30' stroke='#c8102e' stroke-width='3.4'/>`],
+  [/belgica|belgium/,v("#000","#fdda24","#ef3340")],
+  [/holanda|paises bajos|netherlands/,h("#ae1c28","#fff","#21468b")],
+  [/irlanda|ireland/,v("#169b62","#fff","#ff883e")],
+  [/argentina/,h("#74acdf","#fff","#74acdf")],
+  [/catalun|senyera/,h("#fcdd09","#da121a","#fcdd09","#da121a","#fcdd09","#da121a","#fcdd09","#da121a","#fcdd09")],
+  [/brasil|brazil/,`<rect width='30' height='20' fill='#009c3b'/><path d='M15 2L28 10L15 18L2 10Z' fill='#ffdf00'/><circle cx='15' cy='10' r='4' fill='#002776'/>`],
+  [/suiza|switzerland/,`<rect width='30' height='20' fill='#da291c'/><path d='M15 5V15M10 10H20' stroke='#fff' stroke-width='3'/>`],
+  [/japon|japan/,`<rect width='30' height='20' fill='#fff'/><circle cx='15' cy='10' r='5' fill='#bc002d'/>`],
+  [/suecia|sweden/,`<rect width='30' height='20' fill='#006aa7'/><path d='M11 0V20M0 10H30' stroke='#fecc00' stroke-width='4'/>`],
+  [/estados unidos|usa|eeuu/,h("#b22234","#fff","#b22234","#fff","#b22234","#fff","#b22234")+`<rect width='13' height='11' fill='#3c3b6e'/>`]]})();
+const flagFor=name=>{const n=String(name||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();const f=FLAGS.find(([r])=>r.test(n));return f?f[1]:null};
+const flagBg=name=>{const g=flagFor(name);if(!g)return null;
+  const svg=`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 20' preserveAspectRatio='xMidYMid slice'>${g}</svg>`;
+  return `url(data:image/svg+xml,${encodeURIComponent(svg).replace(/'/g,"%27").replace(/\(/g,"%28").replace(/\)/g,"%29")}) center/cover`};
+const swBg=k=>flagBg(COLORS[k][0])||duoBg(COLORS[k][1],COLORS[k][2]);
 rebuildColors();
 const COLORS=new Proxy(COLOR_STORE,{get:(t,k)=>typeof k!=="string"?t[k]:(t[k]||t[ALIAS[k]]||["Ref. "+k+" (retirado)","#c8cacf"])});
 const colorCode=k=>ALIAS[k]||k;
@@ -3847,7 +3872,7 @@ function admAttrs(){
       <div class="err" id="ncolErr" style="color:var(--danger);font-size:14px"></div>
       <div class="row" style="margin:10px 0;align-items:center;gap:10px"><input type="search" id="colQ" value="${esc(COLQ)}" placeholder="Buscar color por referencia o nombre (p. ej. 157 o España)" aria-label="Buscar color" style="flex:1 1 280px"><span class="dim" id="colQn" style="font-size:13px"></span></div>
       <div class="colgrid" id="colGrid">${PALETTE.map(([c,n,h,h0],i)=>{const used=PRODUCTS.filter(p=>p.colors.includes(c)).length,h2=COLORS[c][2];
-        return `<div class="colcard" data-cq="${esc(normC(c+" "+n))}" data-cref="${esc(normC(c))}"><span class="duo"><input type="color" value="${h}" data-chex="${i}" aria-label="Color de la referencia ${esc(c)}">${h2?`<input type="color" value="${h2}" data-chex2="${i}" aria-label="Segundo tono de ${esc(c)}"><button class="linkbtn" type="button" data-cduo="${i}" title="Quitar el segundo tono">− tono</button>`:`<button class="linkbtn" type="button" data-cduo="${i}" title="Añadir un segundo tono (colores combinados como Gris/Negro)">+ tono</button>`}</span>
+        return `<div class="colcard" data-cq="${esc(normC(c+" "+n))}" data-cref="${esc(normC(c))}"><span class="duo">${flagBg(n)?`<i class="flagsw" title="Bandera (se pone sola por el nombre)" style="background:${flagBg(n)}"></i>`:""}<input type="color" value="${h}" data-chex="${i}" aria-label="Color de la referencia ${esc(c)}">${h2?`<input type="color" value="${h2}" data-chex2="${i}" aria-label="Segundo tono de ${esc(c)}"><button class="linkbtn" type="button" data-cduo="${i}" title="Quitar el segundo tono">− tono</button>`:`<button class="linkbtn" type="button" data-cduo="${i}" title="Añadir un segundo tono (colores combinados como Gris/Negro)">+ tono</button>`}</span>
           <div style="min-width:0;flex:1"><span class="mono" style="font-size:12px;color:var(--muted)">Ref. ${esc(c)} · ${used} prenda${used===1?"":"s"}</span>
           <input type="text" value="${esc(n)}" data-cname="${i}" aria-label="Nombre de la referencia ${esc(c)}"></div>
           ${COL_ASK===c?`<button class="btn" type="button" data-cdelyes="${esc(c)}" style="padding:4px 8px;font-size:12px;color:var(--danger);border-color:var(--danger)">${used?"Quitar de "+used:"Eliminar"}</button>`:`<button class="x" type="button" data-cdel="${esc(c)}" aria-label="Eliminar ${esc(n)}">×</button>`}</div>`}).join("")}</div>
