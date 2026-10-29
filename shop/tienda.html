@@ -2,8 +2,9 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Graduate&family=Kaushan+Script&family=Anton&family=Bebas+Neue&family=Teko:wght@600&family=Russo+One&family=Black+Ops+One&family=Bungee&family=Alfa+Slab+One&family=Oswald:wght@700&family=Permanent+Marker&family=Pacifico&family=Lobster&family=Montserrat:wght@800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Graduate&family=Kaushan+Script&family=Anton&family=Bebas+Neue&family=Teko:wght@600&family=Russo+One&family=Black+Ops+One&family=Bungee&family=Alfa+Slab+One&family=Oswald:wght@700&family=Permanent+Marker&family=Pacifico&family=Lobster&family=Montserrat:wght@800&family=Staatliches&family=Saira+Condensed:wght@800&family=Barlow+Condensed:wght@800&family=Squada+One&family=Chakra+Petch:wght@700&display=swap">
 <style>
+@font-face{font-family:"EP Liga";src:url("/fonts/ep-liga.ttf") format("truetype");font-display:swap}
 /* Layout: taller de estampación — catálogo arriba, mesa de trabajo (prenda con marcas de corte + panel de pasos) y caja siempre visible */
 :root{
   --paper:#eceef1; --surface:#ffffff; --surface-2:#f5f6f8; --ink:#15171c; --muted:#5b6170; --line:#d5d9e0;
@@ -465,6 +466,10 @@ form.step>.field,#addrBox>.field,#addrBox>.row{flex:none}
 .subtabs{margin:4px 0 18px;gap:6px}.subtabs .chip{font-size:14px;padding:8px 14px;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
 .subtabs .chip[aria-pressed="true"]{background:var(--accent,#1846d1);border-color:var(--accent,#1846d1);color:#fff}
 @media (max-width:640px){#catSearch{width:100%!important}.cattabs .chip{font-size:15px;padding:10px 16px}}
+.tfonts{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:6px;margin-top:4px}
+.tfont{border:1px solid var(--line,#ddd);background:#fff;border-radius:8px;padding:8px 4px 6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;color:inherit}
+.tfont b{font-size:20px;line-height:1.1;white-space:nowrap}.tfont small{font-size:11px;opacity:.7}
+.tfont.on{border-color:currentColor;box-shadow:0 0 0 2px currentColor inset}
 .supviews{display:flex;gap:8px;flex-wrap:wrap}.supviews figure{margin:0;width:96px;font-size:11px;text-align:center}.supviews img{width:96px;height:106px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:6px}
 .fwash{display:flex;gap:8px;flex-wrap:wrap}.fwash img{width:30px;height:30px;object-fit:contain}
 
@@ -784,8 +789,8 @@ footer{background:var(--surface);margin-top:40px}
           <label><input type="checkbox" id="tNumF"> Número delante</label>
         </div>
         <div class="row" style="margin-bottom:12px">
-          <label class="field"><span>Estilo de número</span>
-            <select id="tStyle"><option value="block">Bloque deportivo</option><option value="college">College clásico</option></select></label>
+          <div class="field" style="flex:1"><span>Tipografía de nombre y número</span>
+            <div class="tfonts" id="tStyle" role="radiogroup" aria-label="Tipografía de nombre y número"></div></div>
         </div>
         <div class="label" style="margin-bottom:6px">Color del vinilo · <span id="vinylName"></span></div>
         <div class="swatches" id="vColors" style="margin-bottom:14px"></div>
@@ -1126,6 +1131,12 @@ const FONT_LIST=[
   {k:"teko",label:"Teko",family:"Teko",w:600,g:"Deportivas"},
   {k:"oswald",label:"Oswald",family:"Oswald",w:700,g:"Deportivas"},
   {k:"russo",label:"Russo One",family:"'Russo One'",w:400,g:"Deportivas"},
+  {k:"liga",label:"Liga (fútbol)",family:"'EP Liga'",w:400,g:"Deportivas"},
+  {k:"staat",label:"Staatliches",family:"Staatliches",w:400,g:"Deportivas"},
+  {k:"saira",label:"Saira Condensed",family:"'Saira Condensed'",w:800,g:"Deportivas"},
+  {k:"barlow",label:"Barlow Condensed",family:"'Barlow Condensed'",w:800,g:"Deportivas"},
+  {k:"squada",label:"Squada One",family:"'Squada One'",w:400,g:"Deportivas"},
+  {k:"chakra",label:"Chakra Petch",family:"'Chakra Petch'",w:700,g:"Deportivas"},
   {k:"college",label:"College (Graduate)",family:"Graduate",w:400,g:"Clásicas"},
   {k:"alfa",label:"Alfa Slab",family:"'Alfa Slab One'",w:400,g:"Clásicas"},
   {k:"stencil",label:"Black Ops (stencil)",family:"'Black Ops One'",w:400,g:"Clásicas"},
@@ -1140,6 +1151,7 @@ const FONT_LIST=[
 ];
 if(ADOBE_KIT){const l=document.createElement("link");l.rel="stylesheet";l.href=`https://use.typekit.net/${ADOBE_KIT}.css`;document.head.appendChild(l)}
 const fontOf=k=>FONT_LIST.find(f=>f.k===k)||FONT_LIST[0];
+const TEAM_FONTS=()=>FONT_LIST.filter(f=>f.g==="Deportivas"||["college","alfa","stencil"].includes(f.k));
 const ff=k=>`${fontOf(k).family},Impact,sans-serif`;
 const FONTS={block:ff("block"),college:ff("college")};
 function fontOptions(sel){
@@ -1426,12 +1438,12 @@ function renderCanvas(){
   });
   const T=S.team;
   if(T.on){
-    const s=teamSample(), v=vinyl(T.vinyl), f=T.style==="college"?FONTS.college:FONTS.block, ts=textShadow(v);
+    const s=teamSample(), v=vinyl(T.vinyl), f=ff(T.style||"block"), fw=fontOf(T.style||"block").w, ts=textShadow(v);
     if(S.side==="back"){
-      if(T.name&&s.name) h+=`<div class="layer fixed" style="left:50%;top:21%;font-family:${f};font-weight:800;color:${v[2]};font-size:calc(var(--u) * ${(6.5*CM*1.38).toFixed(2)});letter-spacing:.04em;${ts}">${esc(s.name)}</div>`;
-      if(T.numB&&s.num) h+=`<div class="layer fixed" style="left:50%;top:${T.name?44:38}%;font-family:${f};font-weight:900;color:${v[2]};font-size:calc(var(--u) * ${(20*CM*1.38).toFixed(2)});${ts}">${esc(s.num)}</div>`;
+      if(T.name&&s.name) h+=`<div class="layer fixed" style="left:50%;top:21%;font-family:${f};font-weight:${fw};color:${v[2]};font-size:calc(var(--u) * ${(6.5*CM*1.38).toFixed(2)});letter-spacing:.04em;${ts}">${esc(s.name)}</div>`;
+      if(T.numB&&s.num) h+=`<div class="layer fixed" style="left:50%;top:${T.name?44:38}%;font-family:${f};font-weight:${fw};color:${v[2]};font-size:calc(var(--u) * ${(20*CM*1.38).toFixed(2)});${ts}">${esc(s.num)}</div>`;
     }else if(T.numF&&s.num){
-      h+=`<div class="layer fixed" style="left:36%;top:31%;font-family:${f};font-weight:900;color:${v[2]};font-size:calc(var(--u) * ${(8*CM*1.38).toFixed(2)});${ts}">${esc(s.num)}</div>`;
+      h+=`<div class="layer fixed" style="left:36%;top:31%;font-family:${f};font-weight:${fw};color:${v[2]};font-size:calc(var(--u) * ${(8*CM*1.38).toFixed(2)});${ts}">${esc(s.num)}</div>`;
     }
   }
   $("#layers").innerHTML=h;
@@ -1659,7 +1671,9 @@ function alertNote(msg){const n=document.createElement("div");n.className="note 
 function renderTeam(){
   const T=S.team;
   $("#teamOn").checked=T.on; $("#teamBody").hidden=!T.on;
-  $("#tName").checked=T.name;$("#tNumB").checked=T.numB;$("#tNumF").checked=T.numF;$("#tStyle").value=T.style;
+  $("#tName").checked=T.name;$("#tNumB").checked=T.numB;$("#tNumF").checked=T.numF;
+  $("#tStyle").innerHTML=TEAM_FONTS().map(f=>{const nm=f.k==="block"?"Bloque":f.k==="college"?"College":f.label;
+    return `<button type="button" role="radio" aria-checked="${T.style===f.k}" class="tfont${T.style===f.k?" on":""}" data-tf="${f.k}" title="${esc(nm)}"><b style="font-family:${f.family};font-weight:${f.w}">10 GARCÍA</b><small>${esc(nm)}</small></button>`}).join("");
   $("#teamAside").textContent=S.product.sport?"Vinilo termoadhesivo":"Opcional";
   $("#vColors").innerHTML=vinylSw(T.vinyl);
   $("#vinylName").textContent=vinyl(T.vinyl)[1]+(vinyl(T.vinyl)[3]==="refl"?" (+"+eur(DECO.reflect)+"/ud)":"");
@@ -1677,7 +1691,7 @@ function renderTeam(){
 }
 $("#teamOn").addEventListener("change",e=>{S.team.on=e.target.checked;if(S.team.on&&!S.team.rows.length)S.team.rows.push({id:uid(),size:"M",name:"",num:""});if(S.team.on)S.side="back";renderAll()});
 ["tName","tNumB","tNumF"].forEach(id=>$("#"+id).addEventListener("change",e=>{const k={tName:"name",tNumB:"numB",tNumF:"numF"}[id];S.team[k]=e.target.checked;S.side=k==="numF"?"front":"back";renderTeam();renderCanvas();renderTill()}));
-$("#tStyle").addEventListener("change",e=>{S.team.style=e.target.value;renderCanvas()});
+$("#tStyle").addEventListener("click",e=>{const b=e.target.closest("[data-tf]");if(!b)return;S.team.style=b.dataset.tf;renderTeam();renderCanvas()});
 $("#vColors").addEventListener("click",e=>{const v=e.target.closest("[data-v]");if(!v)return;S.team.vinyl=v.dataset.v;S.side="back";renderTeam();renderCanvas();renderTill()});
 $("#rows").addEventListener("input",e=>{const tr=e.target.closest("tr"),r=S.team.rows.find(x=>x.id===tr.dataset.id),f=e.target.dataset.f;
   let v=e.target.value; if(f==="name"){v=v.toUpperCase();e.target.value=v} if(f==="num"){v=v.replace(/\D/g,"");e.target.value=v}
@@ -2614,10 +2628,10 @@ function designMock(i,side,uid){
       h+=`<div class="layer" style="left:${e.x}%;top:${e.y}%;width:${e.w*CM}%">${src?logoHTML(el):`<div style="border:2px dashed var(--danger);aspect-ratio:${1/(e.ar||1)};font-size:10px;display:grid;place-items:center">${esc(e.name)}</div>`}</div>`}
     else{const v=vinyl(e.vinyl);h+=`<div class="layer" style="left:${e.x}%;top:${e.y}%;font-family:${ff(e.font)};font-weight:${fontOf(e.font).w};color:${v[2]};font-size:calc(var(--u) * ${(e.h*CM*1.38).toFixed(2)})">${esc(e.text)}</div>`}
   });
-  const T=d.team; if(T){const r=(i.roster||[]).find(r=>r.name||r.num)||{name:"NOMBRE",num:"10"},v=vinyl(T.vinyl),f=T.style==="college"?FONTS.college:FONTS.block;
-    if(side==="back"){if(T.name&&r.name)h+=`<div class="layer" style="left:50%;top:21%;font-family:${f};font-weight:800;color:${v[2]};font-size:calc(var(--u) * ${(6.5*CM*1.38).toFixed(2)});letter-spacing:.04em">${esc(r.name)}</div>`;
-      if(T.numB&&r.num)h+=`<div class="layer" style="left:50%;top:${T.name?44:38}%;font-family:${f};font-weight:900;color:${v[2]};font-size:calc(var(--u) * ${(20*CM*1.38).toFixed(2)})">${esc(r.num)}</div>`}
-    else if(T.numF&&r.num)h+=`<div class="layer" style="left:36%;top:31%;font-family:${f};font-weight:900;color:${v[2]};font-size:calc(var(--u) * ${(8*CM*1.38).toFixed(2)})">${esc(r.num)}</div>`}
+  const T=d.team; if(T){const r=(i.roster||[]).find(r=>r.name||r.num)||{name:"NOMBRE",num:"10"},v=vinyl(T.vinyl),f=ff(T.style||"block"),fw=fontOf(T.style||"block").w;
+    if(side==="back"){if(T.name&&r.name)h+=`<div class="layer" style="left:50%;top:21%;font-family:${f};font-weight:${fw};color:${v[2]};font-size:calc(var(--u) * ${(6.5*CM*1.38).toFixed(2)});letter-spacing:.04em">${esc(r.name)}</div>`;
+      if(T.numB&&r.num)h+=`<div class="layer" style="left:50%;top:${T.name?44:38}%;font-family:${f};font-weight:${fw};color:${v[2]};font-size:calc(var(--u) * ${(20*CM*1.38).toFixed(2)})">${esc(r.num)}</div>`}
+    else if(T.numF&&r.num)h+=`<div class="layer" style="left:36%;top:31%;font-family:${f};font-weight:${fw};color:${v[2]};font-size:calc(var(--u) * ${(8*CM*1.38).toFixed(2)})">${esc(r.num)}</div>`}
   return h;
 }
 /* ===== Edición del pedido en la tienda: quitar elementos y calcular la devolución ===== */
@@ -2676,7 +2690,7 @@ function designDetail(i,ref,n){
         ${ref&&TXT_EDIT===`${ref}|${n}|el:${d.els.indexOf(e)}`?`<form class="row pd-txtform" data-txtsave="${esc(TXT_EDIT)}" style="gap:6px;margin-top:6px"><input type="text" value="${esc(e.text)}" maxlength="40" style="max-width:240px" aria-label="Texto corregido"><button class="btn" type="submit" style="padding:4px 10px">Guardar</button><button class="btn" type="button" data-rmno style="padding:4px 10px">Cancelar</button></form>`:ref?rowActions(ref,n,"el:"+d.els.indexOf(e),i,true):""}</div></div>`)}
   }));
   const T=d.team;
-  if(T){const v=vinyl(T.vinyl), st=T.style==="college"?"College":"Bloque deportivo";
+  if(T){const v=vinyl(T.vinyl), st="letra "+fontOf(T.style||"block").label;
     if(T.name)rows.push(`<div class="pd"><div class="pd-file"><span class="pd-thumb txt">ABC</span></div><div><b>Detrás · Nombre</b> (uno por prenda, ver lista)<div>Vinilo <b>${v[0]} ${v[1]}</b> · ${st} · letra de 6,5 cm de alto</div><div class="dim">Centrado, a ${fmtCm(cmY(21,"back"))} cm bajo el cuello</div>${ref?rowActions(ref,n,"team:name",i,false):""}</div></div>`);
     if(T.numB)rows.push(`<div class="pd"><div class="pd-file"><span class="pd-thumb txt">10</span></div><div><b>Detrás · Número</b><div>Vinilo <b>${v[0]} ${v[1]}</b> · ${st} · 20 cm de alto (15 cm en tallas infantiles)</div><div class="dim">Centrado, centro del número a ${fmtCm(cmY(T.name?44:38,"back"))} cm bajo el cuello</div>${ref?rowActions(ref,n,"team:numB",i,false):""}</div></div>`);
     if(T.numF)rows.push(`<div class="pd"><div class="pd-file"><span class="pd-thumb txt">10</span></div><div><b>Delante · Número</b><div>Vinilo <b>${v[0]} ${v[1]}</b> · ${st} · 8 cm de alto</div><div class="dim">${posText({x:36,y:31,side:"front"})}</div>${ref?rowActions(ref,n,"team:numF",i,false):""}</div></div>`);}
