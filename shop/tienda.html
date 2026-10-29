@@ -457,6 +457,8 @@ form.step>.field,#addrBox>.field,#addrBox>.row{flex:none}
 .sgroup:not(.on) .szchips{opacity:.4}.szchips{display:flex;flex-wrap:wrap;gap:4px}.szchips label{cursor:pointer}.szchips input{position:absolute;opacity:0;pointer-events:none}
 .szchips span{display:inline-block;padding:3px 8px;border:1px solid var(--line);border-radius:6px;font:12px var(--f-mono);background:var(--surface)}
 .szchips input:checked+span{border-color:var(--ink);background:var(--ink);color:#fff}.szchips input:focus-visible+span{outline:2px solid var(--accent)}
+.cpthumb{display:block;width:56px}.cpthumb svg{position:absolute;inset:0;width:100%;height:100%}
+.cpnote{margin-top:4px;font-size:12px;padding:4px 6px}
 .supviews{display:flex;gap:8px;flex-wrap:wrap}.supviews figure{margin:0;width:96px;font-size:11px;text-align:center}.supviews img{width:96px;height:106px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:6px}
 .fwash{display:flex;gap:8px;flex-wrap:wrap}.fwash img{width:30px;height:30px;object-fit:contain}
 
@@ -1237,7 +1239,7 @@ $("#catSearch").addEventListener("input",e=>{S.q=e.target.value;S.lim=24;clearTi
 $("#grid").addEventListener("click",e=>{const b=e.target.closest("[data-pid]");if(!b)return;location.hash=b.dataset.pid});
 document.addEventListener("click",e=>{const b=e.target.closest("[data-sector]");if(!b)return;S.cat=b.dataset.sector;S.sub=null;S.lim=24;renderCats();
   if(location.hash!=="#catalogo")location.hash="catalogo";else window.scrollTo({top:0,behavior:"smooth"})});
-$("#backCat").addEventListener("click",()=>{location.hash="catalogo"});
+$("#backCat").addEventListener("click",()=>{if(EDITCP){endCpEdit(EDITCP.key);return}location.hash="catalogo"});
 function selectProduct(id){
   const changed=S.product.id!==id;
   S.product=PRODUCTS.find(p=>p.id===id);
@@ -2234,11 +2236,11 @@ function cprodHTML(cp){
     <div class="mini-wrap"><div class="mini">${miniHTML(cp,side)}</div>
       ${hasBack?`<div class="seg" role="group" aria-label="Vista"><button type="button" data-aside="front" data-cp="${cp.id}" aria-pressed="${side==="front"}">Delante</button><button type="button" data-aside="back" data-cp="${cp.id}" aria-pressed="${side==="back"}">Detrás</button></div>`:""}</div>
     <div style="min-width:0">
-      <h3>${esc(cp.label)}</h3>${cp.fromQuote?`<span class="tag-ex" style="color:var(--accent);border-color:var(--accent)">Presupuesto ${esc(cp.fromQuote)}</span>`:""}
+      <h3>${esc(cp.label)}${IS_ADMIN&&cp.note?` <span class="kindtag">${esc(cp.note)}</span>`:""}</h3>${cp.fromQuote?`<span class="tag-ex" style="color:var(--accent);border-color:var(--accent)">Presupuesto ${esc(cp.fromQuote)}</span>`:""}
       <div class="spec">${esc(pr.name)} · ${colorLabel(cp.color)}<br>${esc(specText(cp))}${pr.minQty>1?`<br><b>Pedido mínimo: ${pr.minQty} ud</b>`:""}</div>
       ${sizeGridHTML(pr,cell)}
     </div>
-    <div class="side"><div><span class="pp">${eur(cp.price)}</span><br><small>precio acordado / ud</small>${IS_ADMIN&&CUR?`<br><button class="linkbtn" type="button" data-cpedit="${CUR.code}|${cp.id}">Editar diseño</button>`:""}</div><span class="lt" data-lt="${cp.id}">${cpQty(cp.id)?cpQty(cp.id)+" ud · "+eur(cpTotal(cp)):"—"}</span></div>
+    <div class="side"><div><span class="pp">${eur(cp.price)}</span><br><small>precio acordado / ud</small>${IS_ADMIN&&CUR?`<br><button class="linkbtn" type="button" data-cpedit="${CUR.code}|${cp.id}">Editar diseño</button>${(cp.els||[]).filter(e=>e.kind==="logo").map(e=>`<br><button class="linkbtn" type="button" data-cpdl="${CUR.code}|${cp.id}|${cp.els.indexOf(e)}">⬇ ${esc(e.name||"logo")}</button>`).join("")}`:""}</div><span class="lt" data-lt="${cp.id}">${cpQty(cp.id)?cpQty(cp.id)+" ud · "+eur(cpTotal(cp)):"—"}</span></div>
   </article>`;
 }
 function updateAbar(){
@@ -2774,9 +2776,12 @@ function clientSheet(key){
     <div class="co">
       <div style="display:flex;flex-direction:column;gap:12px">
         <div class="label">Productos de su área · precio acordado</div>
-        <div class="tbl"><table style="min-width:0"><thead><tr><th>Producto</th><th>Prenda</th><th>Precio / ud</th><th></th></tr></thead><tbody>
-        ${c.products.map(p=>{const pr=PRODUCTS.find(x=>x.id===p.pid);return `<tr><td><b>${esc(p.label)}</b></td><td>${esc(pr?pr.name:"")} · ${colorLabel(p.color)}</td>
-          <td><input type="number" step="0.01" min="0" value="${p.price.toFixed(2)}" data-cpprice="${p.id}" aria-label="Precio de ${esc(p.label)}"> <button class="linkbtn" type="button" data-cpedit="${key}|${p.id}">Editar diseño</button></td><td><button class="x" type="button" data-cprm="${p.id}" data-key="${key}" aria-label="Quitar producto">×</button></td></tr>`}).join("")||`<tr><td colspan="4" style="color:var(--muted)">Aún no tiene productos. Pulsa «Diseñar producto».</td></tr>`}
+        <div class="tbl"><table style="min-width:0"><thead><tr><th></th><th>Producto</th><th>Prenda y diseño</th><th>Precio / ud</th><th></th></tr></thead><tbody>
+        ${c.products.map(p=>{const pr=PRODUCTS.find(x=>x.id===p.pid);const logos=(p.els||[]).filter(e=>e.kind==="logo");return `<tr><td style="width:64px">${pr?`<span class="cpthumb mini">${miniHTML(p,"front")}</span>`:""}</td>
+          <td><b>${esc(p.label)}</b><input type="text" class="cpnote" value="${esc(p.note||"")}" data-cpnote="${key}|${p.id}" placeholder="Nombre interno (p. ej. logo 28 cm)" aria-label="Nombre interno de ${esc(p.label)}"></td>
+          <td>${esc(pr?pr.name:"")} · ${colorLabel(p.color)}<br><small class="dim">${esc(specText(p))}</small>
+            ${logos.length?`<div class="row" style="gap:6px;flex-wrap:wrap;margin-top:4px">${logos.map((e,li)=>`<button class="linkbtn" type="button" data-cpdl="${key}|${p.id}|${(p.els||[]).indexOf(e)}">⬇ ${esc(e.name||"logo")}</button>`).join("")}</div>`:""}</td>
+          <td><input type="number" step="0.01" min="0" value="${p.price.toFixed(2)}" data-cpprice="${p.id}" aria-label="Precio de ${esc(p.label)}"> <button class="linkbtn" type="button" data-cpedit="${key}|${p.id}">Editar diseño</button></td><td><button class="x" type="button" data-cprm="${p.id}" data-key="${key}" aria-label="Quitar producto">×</button></td></tr>`}).join("")||`<tr><td colspan="5" style="color:var(--muted)">Aún no tiene productos. Pulsa «Diseñar producto».</td></tr>`}
         </tbody></table></div>
         <span class="savedmsg" id="cpSaved" hidden>Precio guardado</span>
         <div class="label" style="margin-top:10px">Pedidos</div>
@@ -3237,16 +3242,29 @@ document.addEventListener("click",e=>{
     newQuoteSheet({f:{},lines:[{desc:tfSummary(R),qty:R.q,unit:R.price,cost:r2(R.costUnit)}]})}
 });
 
+
+/* ficha del cliente: nombre interno y descarga de los archivos de cada producto */
+async function downloadSrc(src,name){
+  if(!src)return;try{const b=await (await fetch(src)).blob();const ext={"image/png":"png","image/jpeg":"jpg","image/svg+xml":"svg","image/webp":"webp","application/pdf":"pdf"}[b.type]||"png";
+    await DL.save({filename:String(name||"logo").replace(/\.[a-z0-9]+$/i,"")+"."+ext,data:b})}catch(e){alert("No se ha podido descargar el archivo.")}}
+document.addEventListener("click",e=>{const b=e.target.closest("[data-cpdl]");if(!b)return;const [k,id,ix]=b.dataset.cpdl.split("|");const cp=findCP(k,id);const el=cp&&cp.els[+ix];
+  if(el)downloadSrc(el.orig||el.src,el.name)});
+document.addEventListener("change",e=>{const t=e.target.closest("[data-cpnote]");if(!t)return;const [k,id]=t.dataset.cpnote.split("|");const ex=loadExtra();const cp=ex[k]&&(ex[k].products||[]).find(p=>p.id===id);
+  if(cp){cp.note=t.value.trim();saveExtra(ex)}});
 /* ===== Gestión: editar el diseño de un producto del área de un cliente ===== */
 let EDITCP=null;
 function findCP(key,id){const ex=loadExtra();const c=ex[key];return c&&(c.products||[]).find(p=>p.id===id)}
 function startCpEdit(key,id){const cp=findCP(key,id);if(!cp)return;const pr=prodById(cp.pid);if(!pr){alert("La prenda de este producto ya no está en el catálogo.");return}
-  EDITCP={key,id,label:cp.label,price:cp.price};$("#sheetRoot").innerHTML="";location.hash=cp.pid;
+  EDITCP={key,id,label:cp.label,price:cp.price};$("#sheetRoot").innerHTML="";location.hash=cp.pid;setBackLabel();
   setTimeout(()=>{S.color=cp.color;S.els=JSON.parse(JSON.stringify(cp.els)).map(e=>({...e,id:uid(),orig:e.orig||e.src}));S.sel=null;S.team.on=false;S.sizes={};renderAll();renderCanvas()},120)}
 function cpEditBanner(){if(!EDITCP)return "";const c=allClients()[EDITCP.key];return `<div class="pickbar"><span>Editando <b>«${esc(EDITCP.label)}»</b> del área de ${esc(c?c.name:EDITCP.key)}. Cambia medidas, posición, técnica o el color de la prenda.</span>
   <label class="field" style="max-width:200px"><span>Precio acordado por unidad</span><input type="number" step="0.01" min="0" id="cpEPrice" value="${(+EDITCP.price).toFixed(2)}"></label>
   <div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn primary" type="button" id="cpESave">Guardar cambios</button><button class="btn" type="button" id="cpENew">Guardar como producto nuevo (${esc(colorLabel(S.color))})</button><button class="btn ghost" type="button" id="cpECancel">Cancelar</button></div></div>`}
-function endCpEdit(key){EDITCP=null;S.els=[];location.hash="admin-clientes";setTimeout(()=>clientSheet(key),150)}
+function endCpEdit(key){EDITCP=null;S.els=[];setBackLabel();location.hash="admin-clientes";setTimeout(()=>clientSheet(key),150)}
+function setBackLabel(){const b=$("#backCat");if(b)b.textContent=EDITCP?`← Volver a ${(allClients()[EDITCP.key]||{}).name||"la ficha del cliente"}`:"← Catálogo"}
+// si se sale con «atrás» del navegador mientras se edita, volver a la ficha del cliente
+window.addEventListener("hashchange",()=>{if(!EDITCP)return;const h=location.hash.slice(1);if(prodById(h))return;const k=EDITCP.key;EDITCP=null;S.els=[];setBackLabel();
+  if(h.startsWith("admin"))setTimeout(()=>clientSheet(k),150)});
 document.addEventListener("input",e=>{if(e.target.id==="cpEPrice"&&EDITCP)EDITCP.price=+e.target.value||0});
 document.addEventListener("click",e=>{
   const b=e.target.closest("[data-cpedit]");if(b){const [k,id]=b.dataset.cpedit.split("|");startCpEdit(k,id);return}
