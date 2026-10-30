@@ -473,6 +473,7 @@ form.step>.field,#addrBox>.field,#addrBox>.row{flex:none}
 .facbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}.facbill{margin-bottom:12px}
 .adm-h .seg{display:inline-flex}td.r,th.r{text-align:right}
 .phflash{outline:3px solid var(--ok,#13874a);outline-offset:2px;transition:outline-color .6s}
+.colog{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px dashed var(--line);border-radius:8px;margin-bottom:6px}
 .tfonts{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:6px;margin-top:4px}
 .tfont{border:1px solid var(--line,#ddd);background:#fff;border-radius:8px;padding:8px 4px 6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;color:inherit}
 .tfont b{font-size:20px;line-height:1.1;white-space:nowrap}.tfont small{font-size:11px;opacity:.7}
@@ -1924,7 +1925,7 @@ $("#drawerRoot").addEventListener("click",e=>{
 document.addEventListener("keydown",e=>{if(e.key==="Escape"){$("#drawerRoot").innerHTML=""}});
 
 /* ============ CHECKOUT ============ */
-const CO={ship:"tienda",pay:"card",invoice:false};
+const CO={ship:"tienda",pay:"card",invoice:false,account:true,login:false};
 function shipCost(){return CO.ship==="tienda"?0:(cartTotal()>=FREE_SHIP?0:SHIPPING)}
 document.addEventListener("click",e=>{const r=e.target.closest("[data-corm]");if(!r)return;
   cart=cart.filter(i=>i.id!==r.dataset.corm);saveCart();updateCount();
@@ -1937,12 +1938,19 @@ function openCheckout(){if(CO.pay==="transfer"&&!canTransfer())CO.pay="card";
    <h1>Finalizar pedido</h1>
    <form class="co" id="coForm" novalidate>
     <div style="display:flex;flex-direction:column;gap:14px">
-      <section class="step"><div class="step-h"><span class="num">01</span><h3>Tus datos</h3></div>
+      <section class="step"><div class="step-h"><span class="num">01</span><h3>Tus datos</h3>${!SESSION&&!IS_ADMIN?`<span class="aside">¿Ya tienes cuenta? <button type="button" class="linkbtn" id="coLgOpen">Inicia sesión</button></span>`:""}</div>
+        ${!SESSION&&!IS_ADMIN?`<div class="colog" id="coLgBox" ${CO.login?"":"hidden"}><div class="row"><label class="field"><span>Email de tu cuenta</span><input type="email" id="coLgEmail" autocomplete="username"></label>
+          <label class="field"><span>Contraseña</span><input type="password" id="coLgPass" autocomplete="current-password"></label></div>
+          <div class="row" style="gap:8px;align-items:center"><button class="btn dark" type="button" id="coLgGo">Entrar y seguir con el pedido</button><button class="linkbtn" type="button" id="coLgX">Comprar sin entrar</button></div>
+          <div class="err" id="coLgErr" style="color:var(--danger);font-size:14px"></div><small class="dim">Tu carrito se mantiene.</small></div>`:""}
         <div class="row"><label class="field"><span>Nombre y apellidos</span><input type="text" id="coName" required autocomplete="name"></label></div>
         <div class="row"><label class="field"><span>Email</span><input type="email" id="coEmail" required autocomplete="email"></label>
         <label class="field"><span>Teléfono</span><input type="tel" id="coTel" required autocomplete="tel"></label></div>
         <label class="toggle" style="font-weight:500"><input type="checkbox" id="coInv"${CO.invoice?" checked":""}> Necesito factura a nombre de empresa o club</label>
         <div class="row" id="invBox" ${CO.invoice?"":"hidden"}><label class="field"><span>Razón social</span><input type="text" id="coCo"></label><label class="field"><span>NIF / CIF</span><input type="text" id="coCif"></label></div>
+        ${!SESSION&&!IS_ADMIN?`<label class="toggle" style="font-weight:500"><input type="checkbox" id="coAcc"${CO.account?" checked":""}> Crear mi cuenta para ver mis pedidos, descargar facturas y repetir más rápido</label>
+        <div id="accBox" ${CO.account?"":"hidden"}><label class="field"><span>Elige una contraseña (mínimo 8 caracteres)</span><input type="password" id="coPass" autocomplete="new-password" minlength="8"></label>
+          <small class="dim">Entrarás en «Área de cliente» con tu email y esta contraseña.</small></div>`:""}
       </section>
       <section class="step"><div class="step-h"><span class="num">02</span><h3>Entrega</h3></div>
         <label class="opt"><input type="radio" name="ship" value="tienda"${CO.ship==="tienda"?" checked":""}><span><b>Recoger en la tienda</b><small>Evasion Running · Vilanova i la Geltrú. Te avisamos cuando esté listo.</small></span><span class="pr">Gratis</span></label>
@@ -1978,13 +1986,23 @@ function openCheckout(){if(CO.pay==="transfer"&&!canTransfer())CO.pay="card";
   window.scrollTo(0,0);
 }
 $("#sheetRoot").addEventListener("click",e=>{if(e.target.closest("[data-back]")){$("#sheetRoot").innerHTML="";if(!$("#admin").hidden&&ADMIN&&!e.target.closest("[data-reload-cat]"))setTimeout(()=>renderAdmin(location.hash.slice(1)),0)}if(e.target.closest("[data-home]")){$("#sheetRoot").innerHTML="";location.hash="catalogo"}});
+/* checkout: iniciar sesión sin perder el carrito */
+$("#sheetRoot").addEventListener("click",async e=>{
+  if(e.target.id==="coLgOpen"){CO.login=true;$("#coLgBox").hidden=false;$("#coLgEmail").value=$("#coLgEmail").value||$("#coEmail").value;$("#coLgEmail").focus();return}
+  if(e.target.id==="coLgX"){CO.login=false;$("#coLgBox").hidden=true;return}
+  if(e.target.id!=="coLgGo")return;const em=$("#coLgEmail").value.trim(),pw=$("#coLgPass").value;
+  if(!em||!pw){$("#coLgErr").textContent="Escribe tu email y tu contraseña.";return}
+  e.target.disabled=true;try{await api("/api/login",{email:em,password:pw});try{sessionStorage.setItem("ep_reopen_co","1")}catch(x){}location.reload()}
+  catch(x){e.target.disabled=false;$("#coLgErr").textContent=x.message}});
+$("#sheetRoot").addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.target.id==="coLgPass"||e.target.id==="coLgEmail")){e.preventDefault();$("#coLgGo").click()}});
 $("#sheetRoot").addEventListener("change",e=>{
   if(e.target.name==="ship"){CO.ship=e.target.value;keepAndReopen()}
   if(e.target.name==="pay"){CO.pay=e.target.value}
   if(e.target.id==="coInv"){CO.invoice=e.target.checked;$("#invBox").hidden=!CO.invoice}
+  if(e.target.id==="coAcc"){CO.account=e.target.checked;$("#accBox").hidden=!CO.account;if(CO.account)$("#coPass").focus()}
 });
 function keepAndReopen(){
-  const ids=["coName","coEmail","coTel","coCo","coCif","coAddr","coZip","coCity"],vals={};ids.forEach(i=>{const n=document.getElementById(i);if(n)vals[i]=n.value});
+  const ids=["coName","coEmail","coTel","coCo","coCif","coAddr","coZip","coCity","coPass","coLgEmail"],vals={};ids.forEach(i=>{const n=document.getElementById(i);if(n)vals[i]=n.value});
   const terms=$("#coTerms")&&$("#coTerms").checked; const y=$(".sheet").scrollTop; openCheckout();
   ids.forEach(i=>{const n=document.getElementById(i);if(n&&vals[i]!=null)n.value=vals[i]}); $("#coTerms").checked=terms; $(".sheet").scrollTop=y;
 }
@@ -1997,6 +2015,7 @@ $("#sheetRoot").addEventListener("submit",async e=>{
   if(v("coTel").replace(/\D/g,"").length<9)err.push("Escribe un teléfono de 9 cifras.");
   if(CO.invoice&&(!v("coCo")||!v("coCif")))err.push("Para la factura faltan la razón social o el NIF/CIF.");
   if(CO.ship==="envio"&&(!v("coAddr")||!/^\d{5}$/.test(v("coZip"))||!v("coCity")))err.push("Completa la dirección de envío (código postal de 5 cifras).");
+  if(CO.account&&!SESSION&&!IS_ADMIN&&v("coPass").length<8)err.push("Elige una contraseña de al menos 8 caracteres para tu cuenta (o desmarca «Crear mi cuenta»).");
   if(!$("#coTerms").checked)err.push("Acepta las condiciones para continuar.");
   if(err.length){$("#coErr").innerHTML=err.map(esc).join("<br>");return}
   const btn=$("#payBtn"); btn.disabled=true; const label=btn.textContent; btn.textContent="Preparando el pago…";
@@ -2010,8 +2029,9 @@ $("#sheetRoot").addEventListener("submit",async e=>{
     btn.textContent="Conectando con el banco…";
     // 2) crear el pedido: el precio se recalcula en el servidor
     let res;
-    try{res=await api("/api/checkout",{customer:{name:v("coName"),email:v("coEmail"),tel:v("coTel"),company:CO.invoice?v("coCo"):"",cif:CO.invoice?v("coCif"):"",ship:CO.ship,addr,pay:CO.pay},items:cart.map(i=>({...i,logos:undefined}))})}
-    catch(e){if(e.status===409&&e.data&&e.data.lines){e.data.lines.forEach(l=>{const it=cart.find(x=>x.id===l.id);if(it){it.total=l.total;it.days=l.days}});saveCart();keepAndReopen()}throw e}
+    try{res=await api("/api/checkout",{customer:{name:v("coName"),email:v("coEmail"),tel:v("coTel"),company:CO.invoice?v("coCo"):"",cif:CO.invoice?v("coCif"):"",ship:CO.ship,addr,pay:CO.pay,...(CO.account&&!SESSION&&!IS_ADMIN?{account:true,password:$("#coPass").value}:{})},items:cart.map(i=>({...i,logos:undefined}))})}
+    catch(e){if(e.status===409&&e.data&&e.data.exists){CO.login=true;keepAndReopen();$("#coLgBox").hidden=false;$("#coLgEmail").value=v("coEmail");$("#coLgPass").focus();$("#coLgErr").textContent=e.message;throw e}
+      if(e.status===409&&e.data&&e.data.lines){e.data.lines.forEach(l=>{const it=cart.find(x=>x.id===l.id);if(it){it.total=l.total;it.days=l.days}});saveCart();keepAndReopen()}throw e}
     try{sessionStorage.setItem("ep_last",JSON.stringify({ref:res.ref,t:res.token,name:v("coName").split(" ")[0],email:v("coEmail"),pay:CO.pay,ship:CO.ship}))}catch(x){}
     if(res.simulated||res.transfer){location.href=`/?pedido=${encodeURIComponent(res.ref)}&t=${res.token}`;return}
     // 3) ir a la pasarela de Redsys
@@ -4310,6 +4330,7 @@ $("#sheetRoot").addEventListener("submit",e=>{
 
 function renderAll(){renderColors();renderEls();renderTeam();renderSizes();renderTill();const pi=$("#pInfo");if(pi)pi.innerHTML=fichaHTML(S.product);renderGallery()}
 renderCats(); renderShowcase(); updateCount(); updateNav(); route(); testRemote(); paymentReturn();
+try{if(sessionStorage.getItem("ep_reopen_co")){sessionStorage.removeItem("ep_reopen_co");if(cart.length)openCheckout()}}catch(e){}
 phLoadAll().then(()=>{if(!Object.keys(PH).length)return;renderCats();if(!$("#config").hidden)renderCanvas();
   if(!$("#area").hidden&&CUR)renderArea("cliente-"+CUR.code.toLowerCase());if(!$("#admin").hidden&&!$("#sheetRoot").innerHTML)renderAdmin(location.hash.slice(1))});
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{if(!$("#config").hidden)renderEls()});
