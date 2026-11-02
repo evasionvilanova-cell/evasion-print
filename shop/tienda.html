@@ -1828,7 +1828,7 @@ function renderTill(){
     ${probs.length?`<div class="err">${probs.map(esc).join("<br>")}</div>`:""}
     ${S.team.on?overlaps(S.els,S.team).map(m=>`<div class="nudge">⚠ ${esc(m)}. Muévelo si no es lo que quieres.</div>`).join(""):""}
     <button class="btn primary big" type="button" id="addCart" ${probs.length?"disabled":""}>Añadir al carrito · ${eur(Q.total)}</button>
-    <button class="btn save" type="button" id="saveClient">Guardar este diseño en el área de un cliente</button>${pickBanner()}${cpEditBanner()}`;
+    ${IS_ADMIN?`<button class="btn save" type="button" id="saveClient">Guardar este diseño en el área de un cliente</button>`:""}${pickBanner()}${cpEditBanner()}`;
   $("#mTotal").textContent=eur(Q.total); $("#mUnit").textContent=Q.qty?`${Q.qty} ud · ${eur(Q.unit)}/ud`:"Configura tu pedido";
   $("#mAdd").disabled=!!probs.length;
 }
@@ -2386,7 +2386,7 @@ window.addEventListener("hashchange",()=>{const b=$("#abar");if(b&&$("#area").hi
 
 /* guardar diseño del configurador para un cliente */
 document.addEventListener("click",e=>{if(e.target.closest("#saveClient"))openSaveDialog()});
-function openSaveDialog(){
+function openSaveDialog(){if(!IS_ADMIN)return;
   const clients=allClients(), Q=quote();
   $("#sheetRoot").innerHTML=`<div class="sheet" role="dialog" aria-label="Guardar para cliente"><div class="wrap" style="max-width:640px">
     <div class="row" style="justify-content:space-between"><button class="btn" type="button" data-back>← Volver al diseño</button><span class="demo">Uso interno de la tienda</span></div>
