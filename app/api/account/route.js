@@ -2,7 +2,8 @@
 import { q, db } from "@/lib/db";
 import { getSession, checkPassword, hashPassword, tooManyAttempts, recordFailure, clientIp } from "@/lib/auth";
 import { json, fail, body } from "@/lib/http";
-import { loadKv } from "@/lib/shop";
+import { blobEnabled } from "@/lib/files";
+import { loadKv, webUnitPrice, productOf, PriceError } from "@/lib/shop";
 import { createInvoice, cleanBilling, InvoiceError } from "@/lib/invoices";
 
 const str = (v, n = 200) => String(v ?? "").trim().slice(0, n);
@@ -59,6 +60,39 @@ export async function POST(req) {
       c.logos = [{ id: str(l.id, 40), name: str(l.name, 120), file: l.file, mask: l.mask || null, ar: +l.ar || 1, px: +l.px || 0, vector: !!l.vector, lum: l.lum == null ? null : +l.lum, whiteBg: !!l.whiteBg }, ...list].slice(0, 40);
     }); } catch (e) { return fail(e.message); }
     return json({ ok: true, logos: c.logos });
+  }
+
+  if (d.action === "save-product") {
+    // El cliente se guarda un diseño en «Mis prendas». El precio lo pone la web; solo Gestión lo cambia.
+    if (admin) return fail("Desde Gestión usa «Guardar este diseño en el área de un cliente».");
+    const kv = await loadKv();
+    const p = productOf(kv, str(d.pid, 60));
+    if (!p || p.off) return fail("Esa prenda ya no está a la venta.");
+    const color = str(d.color, 20);
+    if (!(p.colors || []).includes(color)) return fail("Ese color no está disponible.");
+    const pre = `cl_${s.client}_`;
+    const num = (v, lo, hi) => Math.min(hi, Math.max(lo, +v || 0));
+    // con Blob activado los logos van como enlace; sin Blob (pruebas) se aceptan incrustados
+    const okSrc = (u) => typeof u === "string" && ((u.length < 600 && /^https:\/\//.test(u)) || (!blobEnabled() && /^data:image\//.test(u) && u.length < 800_000));
+    const els = [];
+    for (const e of (Array.isArray(d.els) ? d.els : []).slice(0, 12)) {
+      const base = { side: e.side === "back" ? "back" : "front", x: num(e.x, 0, 100), y: num(e.y, 0, 100), place: str(e.place, 20) };
+      if (e.kind === "logo") {
+        if (!okSrc(e.src) || (e.maskSrc && !okSrc(e.maskSrc)) || !String(e.file || "").startsWith(pre) || (e.mask && !String(e.mask).startsWith(pre))) return fail("Algún logo no se ha subido bien. Vuelve a intentarlo.");
+        els.push({ ...base, kind: "logo", w: num(e.w, 2, 60), src: e.src, maskSrc: e.maskSrc || null, file: e.file, mask: e.mask || null, name: str(e.name, 120),
+          tech: ["dtf", "vinilo", "seri"].includes(e.tech) ? e.tech : "dtf", recolor: e.recolor ? str(e.recolor, 10) : null, ink: e.ink ? str(e.ink, 20) : null,
+          vector: !!e.vector, px: num(e.px, 0, 20000), ar: num(e.ar, 0.05, 20) || 1, lum: e.lum == null ? null : num(e.lum, 0, 255), whiteBg: !!e.whiteBg, knock: !!e.knock });
+      } else if (e.kind === "text" && str(e.text, 60)) {
+        els.push({ ...base, kind: "text", text: str(e.text, 60), font: str(e.font, 20), vinyl: str(e.vinyl, 10), h: num(e.h, 1, 40), wcm: num(e.wcm, 0, 80) });
+      }
+    }
+    let price;
+    try { price = webUnitPrice(kv, p.id, els); } catch (e) { if (e instanceof PriceError) return fail(e.message); throw e; }
+    const cp = { id: "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), label: str(d.label, 80) || p.name, pid: p.id, color, price, els, last: {}, byClient: true, created: new Date().toISOString() };
+    let out;
+    try { out = await saveClient(s.client, (c) => { c.products = c.products || []; if (c.products.length >= 80) throw new Error("Tienes demasiadas prendas guardadas. Pídenos que quitemos alguna."); c.products.push(cp); }); }
+    catch (e) { return fail(e.message); }
+    return json({ ok: true, product: cp, count: out.products.length });
   }
 
   if (d.action === "invoice") {

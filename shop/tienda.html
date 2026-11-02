@@ -1828,7 +1828,7 @@ function renderTill(){
     ${probs.length?`<div class="err">${probs.map(esc).join("<br>")}</div>`:""}
     ${S.team.on?overlaps(S.els,S.team).map(m=>`<div class="nudge">⚠ ${esc(m)}. Muévelo si no es lo que quieres.</div>`).join(""):""}
     <button class="btn primary big" type="button" id="addCart" ${probs.length?"disabled":""}>Añadir al carrito · ${eur(Q.total)}</button>
-    ${IS_ADMIN?`<button class="btn save" type="button" id="saveClient">Guardar este diseño en el área de un cliente</button>`:""}${pickBanner()}${cpEditBanner()}`;
+    ${IS_ADMIN?`<button class="btn save" type="button" id="saveClient">Guardar este diseño en el área de un cliente</button>`:IS_CLIENT&&SESSION&&!EDITCP?`<button class="btn save" type="button" id="saveMine">Guardar en «Mis prendas»</button>`:""}${pickBanner()}${cpEditBanner()}`;
   $("#mTotal").textContent=eur(Q.total); $("#mUnit").textContent=Q.qty?`${Q.qty} ud · ${eur(Q.unit)}/ud`:"Configura tu pedido";
   $("#mAdd").disabled=!!probs.length;
 }
@@ -2386,6 +2386,42 @@ window.addEventListener("hashchange",()=>{const b=$("#abar");if(b&&$("#area").hi
 
 /* guardar diseño del configurador para un cliente */
 document.addEventListener("click",e=>{if(e.target.closest("#saveClient"))openSaveDialog()});
+/* el cliente se guarda el diseño en su área; el precio lo pone la web y solo Gestión lo cambia */
+function webUnit(){return Math.round((S.product.price+S.els.reduce((a,el)=>a+elPrice(el),0))*100)/100}
+function openSaveMine(){
+  $("#sheetRoot").innerHTML=`<div class="sheet" role="dialog" aria-label="Guardar en Mis prendas"><div class="wrap" style="max-width:640px">
+    <div class="row"><button class="btn" type="button" data-back>← Volver al diseño</button></div>
+    <h1 style="font-family:'Instrument Serif',Georgia,serif;font-weight:400;text-transform:none;font-size:48px;margin:18px 0 6px">Guardar en Mis prendas</h1>
+    <p style="color:var(--muted);margin:0 0 18px">La próxima vez solo tendrás que elegir tallas y cantidades desde tu área.</p>
+    <form id="mineForm" class="step" novalidate>
+      <div class="cpthumb mini" style="width:140px;border:1px solid var(--line)">${miniHTML({id:"mine",pid:S.product.id,color:S.color,els:S.els},S.els.some(e=>e.side==="front")||!S.els.length?"front":"back")}</div>
+      <label class="field"><span>Nombre de la prenda</span><input type="text" id="mnLabel" maxlength="80" value="${esc(S.product.name)}" placeholder="p. ej. Camiseta entreno 2026"></label>
+      <div class="note">${esc(S.product.name)} · ${colorLabel(S.color)} · ${S.els.length?`${S.els.length} elemento(s) de diseño`:"prenda lisa, sin estampar"}<br>
+        Precio: <b class="mono">${eur(webUnit())}</b> / ud (precio web). Si habéis acordado otro precio con nosotros, lo ajustamos en tu área.</div>
+      <div class="err" id="mnErr" style="color:var(--danger);font-size:14px"></div>
+      <button class="btn primary big" type="submit" style="justify-content:center">Guardar</button>
+    </form></div></div>`;
+}
+document.addEventListener("click",e=>{if(e.target.closest("#saveMine")&&IS_CLIENT)openSaveMine()});
+$("#sheetRoot").addEventListener("submit",async e=>{if(e.target.id!=="mineForm")return;e.preventDefault();e.stopImmediatePropagation();
+  const btn=e.target.querySelector("button[type=submit]");btn.disabled=true;$("#mnErr").textContent="";const key=SESSION.key;
+  try{
+    const els=[];let n=0;
+    for(const el of S.els){const {id,orig,knocked,...r}=el;
+      if(r.kind==="logo"){n++;btn.textContent=`Subiendo logo ${n}…`;const t=Date.now().toString(36)+n,f=`cl_${key}_d${t}`,m=`cl_${key}_d${t}_m`;
+        r.src=await uploadFile(f,el.src);r.file=f;PH[f]=r.src;
+        if(el.maskSrc&&el.maskSrc!==el.src){r.maskSrc=await uploadFile(m,el.maskSrc);r.mask=m;PH[m]=r.maskSrc}else{r.maskSrc=null;r.mask=null}}
+      else r.wcm=textCm(el).w;
+      els.push(r)}
+    btn.textContent="Guardando…";
+    const res=await api("/api/account",{action:"save-product",label:$("#mnLabel").value.trim(),pid:S.product.id,color:S.color,els});
+    const ex=BOOT.kv.ep_clients||{};if(ex[key]){ex[key].products=ex[key].products||[];ex[key].products.push(res.product)}
+    $("#sheetRoot").innerHTML=`<div class="sheet"><div class="wrap"><div class="done"><span class="eyebrow">Guardado</span>
+      <h1 style="font-family:'Instrument Serif',Georgia,serif;font-weight:400;text-transform:none">«${esc(res.product.label)}» ya está en tus prendas</h1>
+      <p style="margin:0;color:var(--muted)">Precio: ${eur(res.product.price)} / ud. Cuando quieras pedirla, entra en tu área, pon las tallas y paga.</p>
+      <div class="row"><button class="btn primary big" type="button" id="mnGo">Ver Mis prendas</button><button class="btn big" type="button" data-back>Seguir diseñando</button></div></div></div></div>`;
+  }catch(x){btn.disabled=false;btn.textContent="Guardar";$("#mnErr").textContent=x.message||"No se ha podido guardar."}},true);
+document.addEventListener("click",e=>{if(e.target.id==="mnGo"){$("#sheetRoot").innerHTML="";ATAB="prendas";location.hash="cliente-"+SESSION.key.toLowerCase()}});
 function openSaveDialog(){if(!IS_ADMIN)return;
   const clients=allClients(), Q=quote();
   $("#sheetRoot").innerHTML=`<div class="sheet" role="dialog" aria-label="Guardar para cliente"><div class="wrap" style="max-width:640px">
