@@ -8,6 +8,19 @@ import { INVOICE_OF_ORDER, listInvoices, invoiceForShop } from "@/lib/invoices";
 
 export const dynamic = "force-dynamic";
 
+const HIDE_INFO = ["taric", "origin", "pack", "box"];
+function cleanProduct(p) {
+  if (!p || typeof p !== "object") return p;
+  const { cost, costs, supplierPrice, ...rest } = p;
+  if (rest.info && typeof rest.info === "object") { const info = { ...rest.info }; HIDE_INFO.forEach((k) => delete info[k]); rest.info = info; }
+  return rest;
+}
+function publicCatalog(cat) {
+  const out = {};
+  for (const [k, v] of Object.entries(cat)) out[k] = k === "__new" && Array.isArray(v) ? v.map(cleanProduct) : k.startsWith("__") ? v : cleanProduct(v);
+  return out;
+}
+
 function orderForShop(r) {
   return { ...r.data, ref: r.ref, total: +r.total, status: r.data.status || "nuevo", paid: r.paid, pay: r.pay, date: r.created_at.toISOString(), invoice: r.invoice || null, client: r.client || r.data.client || null };
 }
@@ -18,6 +31,9 @@ export async function GET() {
   const kv = await loadKv();
   const boot = { role, demo: false, kv: {}, files: {}, orders: [], ostate: {}, quotes: [], session: null };
   PUBLIC_KEYS.forEach((k) => { if (k in kv) boot.kv[k] = kv[k]; });
+  // el público nunca recibe los costes de compra ni los datos internos del proveedor
+  if (role !== "admin" && boot.kv.ep_catalog) boot.kv.ep_catalog = publicCatalog(boot.kv.ep_catalog);
+  if (role !== "admin" && boot.kv.ep_rates) { const { costs, ...r } = boot.kv.ep_rates; boot.kv.ep_rates = r; }
 
   const files = await q(role === "admin" ? "select key,url from files" : "select key,url from files where scope='public'");
   files.rows.forEach((f) => { boot.files[f.key] = f.url; });

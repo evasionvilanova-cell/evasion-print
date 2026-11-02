@@ -861,10 +861,17 @@ const IS_ADMIN=BOOT.role==="admin";
 async function api(url,data,opt={}){
   const r=await fetch(url,{method:opt.method||"POST",headers:{"Content-Type":"application/json"},body:data===undefined?undefined:JSON.stringify(data),credentials:"same-origin"});
   let j={};try{j=await r.json()}catch(e){}
-  if(!r.ok){const err=new Error(j.error||"No se ha podido conectar con la tienda. Revisa tu conexión.");err.status=r.status;err.data=j;throw err}
+  if(!r.ok){const err=new Error(j.error||(r.status===413?"Son demasiados datos de golpe para el servidor.":r.status?`La tienda ha respondido con un error (${r.status}). Prueba otra vez.`:"No se ha podido conectar con la tienda. Revisa tu conexión."));err.status=r.status;err.data=j;throw err}
   return j}
 const SAVE_Q={};
-function serverSave(k){clearTimeout(SAVE_Q[k]);SAVE_Q[k]=setTimeout(()=>{api("/api/admin/kv",{key:k,value:k in BOOT.kv?BOOT.kv[k]:null}).then(()=>saved(true)).catch(e=>saved(false,e.message))},400)}
+// los datos grandes (el catálogo) se envían comprimidos: el servidor admite como mucho 4,5 MB por envío
+async function kvPost(k){const txt=JSON.stringify({key:k,value:k in BOOT.kv?BOOT.kv[k]:null});
+  if(txt.length<800000||typeof CompressionStream==="undefined")return api("/api/admin/kv",JSON.parse(txt));
+  const gz=await new Response(new Blob([txt]).stream().pipeThrough(new CompressionStream("gzip"))).arrayBuffer();
+  const r=await fetch("/api/admin/kv",{method:"POST",headers:{"Content-Type":"application/octet-stream","X-Body-Encoding":"gzip"},body:gz,credentials:"same-origin"});
+  let j={};try{j=await r.json()}catch(e){}
+  if(!r.ok){const err=new Error(j.error||(r.status===413?"El catálogo es demasiado grande para guardarlo de golpe.":`La tienda ha respondido con un error (${r.status}).`));err.status=r.status;throw err}return j}
+function serverSave(k){clearTimeout(SAVE_Q[k]);SAVE_Q[k]=setTimeout(()=>{kvPost(k).then(()=>saved(true)).catch(e=>saved(false,e.message))},400)}
 function saved(ok,msg){let t=document.getElementById("syncToast");if(!t){t=document.createElement("div");t.id="syncToast";t.setAttribute("role","status");
   t.style.cssText="position:fixed;left:16px;bottom:16px;z-index:9999;padding:8px 12px;border-radius:8px;font:600 13px/1.3 'Instrument Sans',system-ui,sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.18);max-width:calc(100vw - 32px)";document.body.appendChild(t)}
   t.style.background=ok?"#15171c":"#b3261e";t.style.color="#fff";t.textContent=ok?"Guardado":"No se ha guardado: "+(msg||"error");t.hidden=false;clearTimeout(t._h);t._h=setTimeout(()=>t.hidden=true,ok?1400:6000)}

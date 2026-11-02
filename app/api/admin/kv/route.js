@@ -1,4 +1,5 @@
 // Gestión guarda aquí la configuración de la tienda (catálogo, colores, tarifas, clientes…).
+import zlib from "node:zlib";
 import { q } from "@/lib/db";
 import { requireAdmin, hashPassword } from "@/lib/auth";
 import { json, fail, body } from "@/lib/http";
@@ -14,7 +15,14 @@ function usersOf(clients, adm) {
 export async function POST(req) {
   if (!(await requireAdmin())) return fail("Inicia sesión en Gestión.", 401);
   let data;
-  try { data = await body(req, 4_400_000); } catch (e) { return fail(e.message === "too_big" ? "Demasiados datos de golpe. Usa imágenes más ligeras." : "Datos no válidos."); }
+  try {
+    if (req.headers.get("x-body-encoding") === "gzip") {
+      // el catálogo grande llega comprimido (Vercel no acepta más de 4,5 MB por envío)
+      const raw = Buffer.from(await req.arrayBuffer());
+      const txt = zlib.gunzipSync(raw, { maxOutputLength: 60_000_000 }).toString("utf8");
+      data = JSON.parse(txt);
+    } else data = await body(req, 4_400_000);
+  } catch (e) { return fail(e.message === "too_big" ? "Demasiados datos de golpe. Usa imágenes más ligeras." : "Datos no válidos."); }
   const { key, value } = data;
   if (!ALL_KEYS.includes(key)) return fail("Clave no permitida.");
   if (value === null || value === undefined) {
