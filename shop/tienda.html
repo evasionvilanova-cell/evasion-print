@@ -865,7 +865,16 @@ async function api(url,data,opt={}){
   return j}
 const SAVE_Q={};
 // los datos grandes (el catálogo) se envían comprimidos: el servidor admite como mucho 4,5 MB por envío
-async function kvPost(k){const txt=JSON.stringify({key:k,value:k in BOOT.kv?BOOT.kv[k]:null});
+// imágenes incrustadas (logos de las prendas de los clientes, escudos…) se suben como archivo y se guarda solo el enlace
+async function offloadImages(k){if(!BOOT.blob||!["ep_clients","ep_catalog"].includes(k)||!BOOT.kv[k])return;
+  const jobs=[];const walk=(o,owner)=>{if(!o||typeof o!=="object")return;for(const f of Object.keys(o)){const v=o[f];
+    if(typeof v==="string"&&v.startsWith("data:image/")&&v.length>1500)jobs.push([o,f,owner]);else if(v&&typeof v==="object")walk(v,owner)}};
+  if(k==="ep_clients")Object.entries(BOOT.kv[k]).forEach(([ck,c])=>walk(c,ck));else walk(BOOT.kv[k],"cat");
+  const done=new Map();
+  for(const [o,f,owner] of jobs){const v=o[f];if(!done.has(v)){const key=(owner==="cat"?"img_":`cl_${owner}_`)+"i"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+      try{done.set(v,await uploadFile(key,v))}catch(e){done.set(v,null)}}
+    const url=done.get(v);if(url&&/^https?:/.test(url))o[f]=url}}
+async function kvPost(k){await offloadImages(k);const txt=JSON.stringify({key:k,value:k in BOOT.kv?BOOT.kv[k]:null});
   if(txt.length<800000||typeof CompressionStream==="undefined")return api("/api/admin/kv",JSON.parse(txt));
   const gz=await new Response(new Blob([txt]).stream().pipeThrough(new CompressionStream("gzip"))).arrayBuffer();
   const r=await fetch("/api/admin/kv",{method:"POST",headers:{"Content-Type":"application/octet-stream","X-Body-Encoding":"gzip"},body:gz,credentials:"same-origin"});
