@@ -1828,7 +1828,7 @@ function renderTill(){
     ${probs.length?`<div class="err">${probs.map(esc).join("<br>")}</div>`:""}
     ${S.team.on?overlaps(S.els,S.team).map(m=>`<div class="nudge">⚠ ${esc(m)}. Muévelo si no es lo que quieres.</div>`).join(""):""}
     <button class="btn primary big" type="button" id="addCart" ${probs.length?"disabled":""}>Añadir al carrito · ${eur(Q.total)}</button>
-    <button class="btn save" type="button" id="saveClient" ${S.els.length?"":"disabled"}>Guardar este diseño en el área de un cliente</button>${pickBanner()}${cpEditBanner()}`;
+    <button class="btn save" type="button" id="saveClient">Guardar este diseño en el área de un cliente</button>${pickBanner()}${cpEditBanner()}`;
   $("#mTotal").textContent=eur(Q.total); $("#mUnit").textContent=Q.qty?`${Q.qty} ud · ${eur(Q.unit)}/ud`:"Configura tu pedido";
   $("#mAdd").disabled=!!probs.length;
 }
@@ -2139,6 +2139,7 @@ function miniHTML(cp,side){
   return h;
 }
 function specText(cp){
+  if(!(cp.els||[]).length)return "Prenda lisa, sin estampar";
   return cp.els.map(e=>e.kind==="logo"?`Logo ${e.tech==="seri"?"serigrafía":e.tech==="vinilo"?"vinilo":"DTF"} ${e.w} cm ${e.side==="front"?"delante":"detrás"}${e.tech==="vinilo"&&e.recolor?` a un color ${vinyl(e.recolor)[1].toLowerCase()}`:" a todo color"}`:`Texto «${e.text}» vinilo ${vinyl(e.vinyl)[1].toLowerCase()}`).join(" · ");
 }
 function cpQty(id){return Object.values(AQ[id]||{}).reduce((a,b)=>a+(+b||0),0)}
@@ -2398,7 +2399,7 @@ function openSaveDialog(){
       </div>
       <label class="field"><span>Nombre del producto en su área</span><input type="text" id="svLabel" value="${esc(S.product.name)}"></label>
       <label class="field"><span>Precio acordado por unidad (IVA incl.)</span><input type="number" step="0.01" min="0" id="svPrice" value="${(Q.qty?Q.unit:S.product.price+S.els.reduce((a,el)=>a+elPrice(el),0)).toFixed(2)}"></label>
-      <div class="note">${esc(S.product.name)} · ${colorLabel(S.color)} · ${S.els.length} elemento(s) de diseño</div>
+      <div class="note">${esc(S.product.name)} · ${colorLabel(S.color)} · ${S.els.length?`${S.els.length} elemento(s) de diseño`:"prenda lisa, sin estampar"}</div>
       <div class="err" id="svErr" style="color:var(--danger);font-size:14px"></div>
       <button class="btn primary big" type="submit" style="justify-content:center">Guardar en su área</button>
     </form></div></div>`;
