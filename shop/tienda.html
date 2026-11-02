@@ -2302,6 +2302,9 @@ function profilePane(c){
   </div>`;
 }
 const reArea=()=>CUR&&renderArea("cliente-"+CUR.code.toLowerCase());
+let CP_RM=null;
+document.addEventListener("click",e=>{const a=e.target.closest("[data-cprmask]");if(a){CP_RM=a.dataset.cprmask||null;reArea();return}
+  const y=e.target.closest("[data-cprmyes]");if(y&&IS_ADMIN){const ad=loadAdm();if(!ad.removed.includes(y.dataset.cprmyes))ad.removed.push(y.dataset.cprmyes);saveAdm(ad);CP_RM=null;reArea()}});
 function okMsg(form,txt){const n=document.createElement("div");n.className="note ok";n.textContent="✓ "+txt;form.appendChild(n);setTimeout(()=>n.remove(),3500)}
 document.addEventListener("click",e=>{
   const t=e.target.closest("[data-atab]");if(t){ATAB=t.dataset.atab;INV_FOR=null;reArea();return}
@@ -2340,7 +2343,7 @@ function cprodHTML(cp){
       <div class="spec">${esc(pr.name)} · ${colorLabel(cp.color)}<br>${esc(specText(cp))}${pr.minQty>1?`<br><b>Pedido mínimo: ${pr.minQty} ud</b>`:""}</div>
       ${sizeGridHTML(pr,cell)}
     </div>
-    <div class="side"><div><span class="pp">${eur(cp.price)}</span><br><small>precio acordado / ud</small>${IS_ADMIN&&CUR?`<br><button class="linkbtn" type="button" data-cpedit="${CUR.code}|${cp.id}">Editar diseño</button>${(cp.els||[]).filter(e=>e.kind==="logo").map(e=>`<br><button class="linkbtn" type="button" data-cpdl="${CUR.code}|${cp.id}|${cp.els.indexOf(e)}">⬇ ${esc(e.name||"logo")}</button>`).join("")}`:""}</div><span class="lt" data-lt="${cp.id}">${cpQty(cp.id)?cpQty(cp.id)+" ud · "+eur(cpTotal(cp)):"—"}</span></div>
+    <div class="side"><div><span class="pp">${eur(cp.price)}</span><br><small>precio acordado / ud</small>${IS_ADMIN&&CUR?`<br><button class="linkbtn" type="button" data-cpedit="${CUR.code}|${cp.id}">Editar diseño</button><br>${CP_RM===cp.id?`<span class="cprmask">¿Quitar del área? <button class="linkbtn" type="button" data-cprmyes="${cp.id}" style="color:var(--danger)">Sí, quitar</button> · <button class="linkbtn" type="button" data-cprmask="">No</button></span>`:`<button class="linkbtn" type="button" data-cprmask="${cp.id}" style="color:var(--danger)">Quitar del área</button>`}${(cp.els||[]).filter(e=>e.kind==="logo").map(e=>`<br><button class="linkbtn" type="button" data-cpdl="${CUR.code}|${cp.id}|${cp.els.indexOf(e)}">⬇ ${esc(e.name||"logo")}</button>`).join("")}`:""}</div><span class="lt" data-lt="${cp.id}">${cpQty(cp.id)?cpQty(cp.id)+" ud · "+eur(cpTotal(cp)):"—"}</span></div>
   </article>`;
 }
 function updateAbar(){
