@@ -6,7 +6,7 @@ import { orderLines } from "@/lib/orders";
 import { invoiceToken, invoiceOf } from "@/lib/invoices";
 import { safeEqual } from "@/lib/auth";
 
-const SHOP = { name: "Javier Mercadé López", brand: "Evasion Print · Evasion Running Vilanova", nif: "52427223B", addr: "C/ Tetuán, 4", city: "08800 Vilanova i la Geltrú (Barcelona)", tel: "696 356 962", email: "info@evasionprint.com" };
+const SHOP = { name: "Javier Mercadé López", brand: "Evasion Print", nif: "52427223B", addr: "C/ Tetuán, 4", city: "08800 Vilanova i la Geltrú (Barcelona)", tel: "696 356 962", email: "info@evasionprint.com" };
 const r2 = (n) => Math.round(n * 100) / 100;
 const dES = (d) => new Date(d).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Madrid" });
 
