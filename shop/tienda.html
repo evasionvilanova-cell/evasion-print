@@ -476,6 +476,13 @@ form.step>.field,#addrBox>.field,#addrBox>.row{flex:none}
 .colog{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px dashed var(--line);border-radius:8px;margin-bottom:6px}
 .ceuser{display:flex;flex-direction:column;gap:8px;padding:10px;border:1px solid var(--line);border-radius:8px}
 .npxcats .checks{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:14px}.npxcats label[hidden]{display:none}
+.tsteps{counter-reset:ts;list-style:none;padding:0;margin:22px 0 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+.tsteps li{counter-increment:ts;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px 16px 16px 56px;position:relative;display:flex;flex-direction:column;gap:4px}
+.tsteps li::before{content:counter(ts);position:absolute;left:16px;top:14px;width:28px;height:28px;border-radius:50%;background:var(--ink);color:var(--paper);display:grid;place-items:center;font-weight:700;font-size:14px}
+.tsteps li span{color:var(--muted);font-size:14px}
+.tourring{position:absolute;z-index:9000;border:3px solid var(--accent,#e4f03a);border-radius:10px;box-shadow:0 0 0 9999px rgba(10,12,16,.45);pointer-events:none;transition:all .2s}
+.tourbox{position:absolute;z-index:9001;background:var(--surface,#fff);color:var(--ink);border-radius:10px;padding:14px 16px;box-shadow:0 10px 30px rgba(0,0,0,.25);display:flex;flex-direction:column;gap:6px}
+.tourbox p{margin:0;font-size:14px;color:var(--muted)}
 .tfonts{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:6px;margin-top:4px}
 .tfont{border:1px solid var(--line,#ddd);background:#fff;border-radius:8px;padding:8px 4px 6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;color:inherit}
 .tfont b{font-size:20px;line-height:1.1;white-space:nowrap}.tfont small{font-size:11px;opacity:.7}
@@ -690,7 +697,7 @@ footer{background:var(--surface);margin-top:40px}
       <p>Camisetas, sudaderas, chaquetas, equipaciones y ropa de trabajo. Sube tu logo, añade nombres y números y ve el precio final mientras diseñas.</p>
       <div class="ctas">
         <a class="btn big pay" href="#catalogo" data-sector="todo">Elegir prenda</a>
-        <button class="btn big ghostlight" type="button" data-sector="deportiva">Equipos y clubs</button>
+        <a class="btn big ghostlight" href="#equipos">Equipos y clubs</a>
       </div>
     </div>
     <div class="showcase" id="showcase" aria-hidden="true"></div>
@@ -1331,6 +1338,18 @@ const SHOP={name:"Evasion Running Vilanova",owner:"Javier Mercadé López",nif:"
   hours:"De lunes a sábado, de 9:30 a 13:30 y de 16:30 a 20:00",maps:"https://www.google.com/maps/dir/?api=1&destination=Carrer%20de%20Tetu%C3%A1n%204%2C%2008800%20Vilanova%20i%20la%20Geltr%C3%BA"};
 const infoWrap=(eyebrow,title,body)=>`<div class="wrap infopage"><span class="eyebrow">${eyebrow}</span><h1>${title}</h1>${body}</div>`;
 const INFO_PAGES={
+  equipos:()=>infoWrap("Equipos y clubs","Tu equipación, paso a paso",`
+    <p class="lead">Camisetas con el escudo del club y el nombre y número de cada jugador, sin presupuestos: lo diseñas en la web, ves el precio al momento y lo pagas. Revisamos los archivos antes de producir.</p>
+    <ol class="tsteps">
+      <li><b>Elige la prenda y el color</b><span>Camiseta, pantalón, sudadera… Filtra por «Sport collection» si buscas ropa técnica.</span></li>
+      <li><b>Sube el escudo o el logo</b><span>PNG, JPG o SVG. Lo colocas en el pecho, la espalda o la manga y eliges el tamaño en cm.</span></li>
+      <li><b>Activa «Nombres y números»</b><span>En el paso 03 del diseñador. Marca si quieres nombre detrás, número detrás y número delante.</span></li>
+      <li><b>Elige la tipografía y el color del vinilo</b><span>Bloque, College, estilo liga… y blanco, negro, dorado, reflectante… Puedes mover y cambiar el tamaño del nombre y el número.</span></li>
+      <li><b>Añade a los jugadores</b><span>Talla, nombre y dorsal de cada uno. Si tienes la lista en Excel, cópiala y pulsa «Pegar lista».</span></li>
+      <li><b>Revisa y al carrito</b><span>Mira delante y detrás, comprueba el precio (con descuento por cantidad) y pulsa «Añadir al carrito».</span></li>
+    </ol>
+    <div class="row" style="gap:10px;margin-top:18px;flex-wrap:wrap"><button class="btn primary big" type="button" id="tourStart">Empezar con la guía en el diseñador</button><a class="btn big" href="#presupuesto">Prefiero que me lo preparéis</a></div>
+    <p class="dim" style="margin-top:12px">La guía te va señalando cada paso en el diseñador real: puedes hacerlo de verdad con tu escudo, o solo mirar. ¿Sois un club o empresa que repite pedidos? <a href="#area">Pedid vuestra área de cliente</a> y os dejamos las prendas preparadas.</p>`),
   envios:()=>infoWrap("Ayuda","Envíos y plazos",`
     <p class="lead">Producimos cada pedido en nuestro taller de Vilanova i la Geltrú. Antes de imprimir revisamos tu archivo; si algo no se va a ver bien, te escribimos.</p>
     <div class="infogrid">
@@ -4355,6 +4374,37 @@ document.addEventListener("paste",async e=>{
   PASTE_T=null;photoSheet(p.id);renderCats();
   const slot=document.querySelector(`[data-pastet="${CSS.escape(t.code+"|"+t.side)}"]`);if(slot){const box=slot.closest(".phslot")||slot;box.classList.add("phflash");box.scrollIntoView({block:"nearest"});setTimeout(()=>box.classList.remove("phflash"),1600)}
 });
+/* ===== Guía interactiva: crear una equipación hasta el carrito ===== */
+let TOUR=null;
+const TOUR_STEPS=[
+  {sel:"#gColors",t:"1 · Color de la prenda",d:"Elige el color de la camiseta. Abajo ves el precio por unidad."},
+  {sel:'label[for="logoInput"]',t:"2 · Escudo o logo",d:"Sube el escudo del club. Después podrás moverlo arrastrándolo en la prenda y elegir el tamaño en cm."},
+  {sel:"#teamStep",t:"3 · Nombres y números",d:"Activamos «Personalizar cada prenda» para poner el nombre y el dorsal de cada jugador.",go:()=>{const c=$("#teamOn");if(c&&!c.checked){c.checked=true;c.dispatchEvent(new Event("change",{bubbles:true}))}}},
+  {sel:"#tStyle",t:"4 · Tipografía",d:"Elige el estilo de las letras y los números. Con las barras de debajo cambias el tamaño en cm."},
+  {sel:"#vColors",t:"5 · Color del vinilo",d:"El color del nombre y el número. Hay dorado, plata y reflectante."},
+  {sel:"#rows",t:"6 · Los jugadores",d:"Una fila por prenda: talla, nombre y dorsal. Con «+ Añadir jugador» añades más, o con «Pegar lista» copias la lista del Excel."},
+  {sel:"#canvas",t:"7 · Revisa la prenda",d:"Cambia entre Delante y Detrás arriba. Puedes arrastrar el nombre, el número o el escudo para moverlos."},
+  {sel:"#addCart",t:"8 · Al carrito",d:"Cuando esté todo, añádelo al carrito y paga con tarjeta o Bizum. Revisamos los archivos antes de producir."}];
+function tourShow(){document.querySelectorAll(".tourbox,.tourring").forEach(n=>n.remove());if(!TOUR)return;
+  const st=TOUR_STEPS[TOUR.i];if(st.go)st.go();
+  setTimeout(()=>{const el=document.querySelector(st.sel);if(!el){tourNext();return}
+    el.scrollIntoView({block:"center",behavior:"smooth"});
+    setTimeout(()=>{const r=el.getBoundingClientRect(),ring=document.createElement("div");ring.className="tourring";
+      Object.assign(ring.style,{left:(r.left+scrollX-6)+"px",top:(r.top+scrollY-6)+"px",width:(r.width+12)+"px",height:(r.height+12)+"px"});document.body.appendChild(ring);
+      const box=document.createElement("div");box.className="tourbox";box.setAttribute("role","dialog");
+      box.innerHTML=`<b>${esc(st.t)}</b><p>${esc(st.d)}</p><div class="row" style="justify-content:space-between;gap:8px"><button class="linkbtn" type="button" id="tourX">Salir de la guía</button>
+        <span class="row" style="gap:6px">${TOUR.i?`<button class="btn" type="button" id="tourPrev">Atrás</button>`:""}<button class="btn primary" type="button" id="tourNext">${TOUR.i===TOUR_STEPS.length-1?"Terminar":"Siguiente"}</button></span></div>`;
+      document.body.appendChild(box);const bw=Math.min(340,innerWidth-24),below=r.bottom+box.offsetHeight+24<innerHeight;
+      Object.assign(box.style,{width:bw+"px",left:Math.max(12,Math.min(innerWidth-bw-12,r.left))+scrollX+"px",top:(below?r.bottom+14:Math.max(12,r.top-box.offsetHeight-14))+scrollY+"px"})},380)},60)}
+function tourNext(){if(!TOUR)return;TOUR.i++;if(TOUR.i>=TOUR_STEPS.length){TOUR=null;tourShow();return}tourShow()}
+document.addEventListener("click",e=>{
+  if(e.target.closest("#tourStart")){const p=PRODUCTS.find(x=>!x.off&&x.sport&&/tee|camiseta|polo/i.test(x.shape+" "+x.name))||PRODUCTS.find(x=>!x.off&&x.sport)||PRODUCTS.find(x=>!x.off);
+    TOUR={i:0};location.hash=p.id;setTimeout(tourShow,700);return}
+  if(e.target.closest("#tourNext")){tourNext();return}
+  if(e.target.closest("#tourPrev")){TOUR.i=Math.max(0,TOUR.i-1);tourShow();return}
+  if(e.target.closest("#tourX")){TOUR=null;tourShow()}});
+window.addEventListener("hashchange",()=>{if(TOUR&&!prodById(location.hash.slice(1))){TOUR=null;tourShow()}});
+window.addEventListener("resize",()=>{if(TOUR)tourShow()});
 /* hojas (pedido, cliente) */
 $("#sheetRoot").addEventListener("change",e=>{
   const t=e.target;
