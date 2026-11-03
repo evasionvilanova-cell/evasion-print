@@ -3910,19 +3910,22 @@ function prodForm(p){
   </form>`;
 }
 let ADM_Q="", ADM_LIM=60, ADM_NOPH=false, ADM_CAT="", ADM_SUB="", ADM_VIS="";
-function admProdList(){const q=ADM_Q.trim().toLowerCase();const ci=k=>{const i=CATS.findIndex(c=>c[0]===k);return i<0?999:i};
-  let l=PRODUCTS.map((p,i)=>[p,i]).filter(([p])=>(!q||(p.name+" "+(p.ref||"")).toLowerCase().includes(q))&&(!ADM_NOPH||(!p.off&&!photoCount(p)))&&(!ADM_CAT||inCat(p,ADM_CAT))&&(!ADM_SUB||(p.subs||[]).includes(ADM_SUB))&&(!ADM_VIS||(ADM_VIS==="on"?!p.off:!!p.off))).sort((a,b)=>ci(a[0].cat)-ci(b[0].cat)||a[1]-b[1]).map(x=>x[0]);
-  if(EDIT_PID&&EDIT_PID!=="__new"){const e=prodById(EDIT_PID);if(e&&!l.slice(0,ADM_LIM).includes(e))l=[e,...l]}return l.slice(0,ADM_LIM)}
+// prendas cuya categoría ya no existe (o sin categoría): siguen a la venta en «Todo»
+const isOrphan=p=>!CATS.slice(1).some(([k])=>inCat(p,k));
+function admProdList(all){const q=ADM_Q.trim().toLowerCase();const ci=k=>{const i=CATS.findIndex(c=>c[0]===k);return i<0?999:i};
+  let l=PRODUCTS.map((p,i)=>[p,i]).filter(([p])=>(!q||(p.name+" "+(p.ref||"")).toLowerCase().includes(q))&&(!ADM_NOPH||(!p.off&&!photoCount(p)))&&(!ADM_CAT||(ADM_CAT==="__orphan"?isOrphan(p):inCat(p,ADM_CAT)))&&(!ADM_SUB||(p.subs||[]).includes(ADM_SUB))&&(!ADM_VIS||(ADM_VIS==="on"?!p.off:!!p.off))).sort((a,b)=>ci(a[0].cat)-ci(b[0].cat)||a[1]-b[1]).map(x=>x[0]);
+  if(all)return l.map(x=>Array.isArray(x)?x[0]:x);if(EDIT_PID&&EDIT_PID!=="__new"){const e=prodById(EDIT_PID);if(e&&!l.slice(0,ADM_LIM).includes(e))l=[e,...l]}return l.slice(0,ADM_LIM)}
 function clientUses(pid){return Object.values(allClients()).reduce((a,c)=>a+c.products.filter(x=>x.pid===pid).length,0)}
 function admCatalog(){
   const editP=EDIT_PID&&EDIT_PID!=="__new"?PRODUCTS.find(p=>p.id===EDIT_PID):null;
   $("#admBody").innerHTML=`<div class="adm-h"><div><span class="eyebrow">Catálogo</span><h1>Prendas base</h1></div><div class="row"><button class="btn" type="button" id="impOpen">Importar desde Excel</button><button class="btn dark" type="button" id="newProd">+ Nueva prenda</button></div></div>
     <div class="row" style="margin-bottom:12px;gap:10px"><input type="search" id="admProdQ" value="${esc(ADM_Q)}" placeholder="Buscar por nombre o referencia" style="max-width:280px" aria-label="Buscar prenda">
-      <select id="admCat" aria-label="Filtrar por categoría" style="max-width:220px"><option value="">Todas las categorías</option>${CATS.slice(1).map(([k,l])=>{const n=PRODUCTS.filter(p=>inCat(p,k)).length;return n?`<option value="${esc(k)}"${ADM_CAT===k?" selected":""}>${esc(l)} (${n})</option>`:""}).join("")}</select>
+      <select id="admCat" aria-label="Filtrar por categoría" style="max-width:220px"><option value="">Todas las categorías</option>${CATS.slice(1).map(([k,l])=>{const n=PRODUCTS.filter(p=>inCat(p,k)).length;return n?`<option value="${esc(k)}"${ADM_CAT===k?" selected":""}>${esc(l)} (${n})</option>`:""}).join("")}${(()=>{const n=PRODUCTS.filter(isOrphan).length;return n?`<option value="__orphan"${ADM_CAT==="__orphan"?" selected":""}>Sin categoría (${n})</option>`:""})()}</select>
       ${ADM_CAT?(()=>{const subs={};PRODUCTS.filter(p=>inCat(p,ADM_CAT)).forEach(p=>(p.subs||[]).forEach(x=>subs[x]=(subs[x]||0)+1));const L=Object.entries(subs).sort((a,b)=>b[1]-a[1]);
         return L.length?`<select id="admSub" aria-label="Filtrar por subcategoría" style="max-width:220px"><option value="">Todas las subcategorías</option>${L.map(([x,n])=>`<option value="${esc(x)}"${ADM_SUB===x?" selected":""}>${esc(x)} (${n})</option>`).join("")}</select>`:""})():""}
       <select id="admVis" aria-label="Filtrar por visibilidad" style="max-width:160px"><option value="">Visibles y ocultas</option><option value="on"${ADM_VIS==="on"?" selected":""}>Solo visibles</option><option value="off"${ADM_VIS==="off"?" selected":""}>Solo ocultas</option></select>
-      <label class="toggle" style="font-weight:500;font-size:14px"><input type="checkbox" id="admNoPh"${ADM_NOPH?" checked":""}> Solo sin fotos (${PRODUCTS.filter(p=>!p.off&&!photoCount(p)).length})</label><span class="dim">${PRODUCTS.length} prendas · ${PRODUCTS.filter(p=>!p.off).length} visibles</span></div>
+      <label class="toggle" style="font-weight:500;font-size:14px"><input type="checkbox" id="admNoPh"${ADM_NOPH?" checked":""}> Solo sin fotos (${PRODUCTS.filter(p=>!p.off&&!photoCount(p)).length})</label><span class="dim">${PRODUCTS.length} prendas · ${PRODUCTS.filter(p=>!p.off).length} visibles</span>
+      ${ADM_CAT||ADM_SUB||ADM_Q.trim()?(()=>{const L=admProdList(true),on=L.filter(p=>!p.off).length;return `<span class="row" style="gap:6px">${on?`<button class="btn" type="button" data-bulkvis="off">Ocultar las ${on} de este filtro</button>`:""}${L.length-on?`<button class="btn" type="button" data-bulkvis="on">Mostrar las ${L.length-on}</button>`:""}</span>`})():""}</div>
     ${EDIT_PID?`<div class="step" style="margin-bottom:16px" id="npBox">${prodForm(editP)}</div>`:""}
     <div class="tbl"><table><thead><tr><th></th><th>Prenda</th><th>Categoría · forma</th><th>Precio de venta</th><th>Colores</th><th>Tallas</th><th>En la web</th><th></th></tr></thead><tbody>
     ${(()=>{const L=admProdList();return L.map((p,ix,arr)=>((ADM_CAT?ix===0:(ix===0||arr[ix-1].cat!==p.cat))?`<tr class="noclick cathead"><td colspan="8">${ADM_CAT?`${esc(catLabel(ADM_CAT))}${ADM_SUB?" · "+esc(ADM_SUB):""} · ${L.length}${L.length>=ADM_LIM?"+":""}`:`${esc(catLabel(p.cat))} · ${PRODUCTS.filter(x=>x.cat===p.cat).length}`}</td></tr>`:"")+`<tr class="noclick"><td style="width:56px"><svg viewBox="0 0 400 440" style="width:40px;height:auto" aria-hidden="true">${prodSVG(p,p.colors[0],"front","a"+p.id)}</svg></td>
@@ -4080,7 +4083,7 @@ function admAttrs(){
     <nav class="cats" style="margin-bottom:14px" aria-label="Ir a"><a class="chip" href="#at-cat" data-jump="at-cat">Categorías</a><a class="chip" data-jump="at-shape" href="#at-shape">Formas</a><a class="chip" data-jump="at-col" href="#at-col">Colores</a><a class="chip" data-jump="at-size" href="#at-size">Tallas</a></nav>
     <section class="step" style="margin-bottom:18px" id="at-cat">
       <div class="step-h"><h3>Categorías</h3><span class="aside">Ordénalas con ↑ ↓: es el orden del menú, del catálogo y del mosaico · «En la home» = sale en el mosaico (máx. 6)</span></div>
-      <div class="colgrid">${CATS.slice(1).map(([k,l],i)=>{const used=PRODUCTS.filter(p=>p.cat===k).length;
+      <div class="colgrid">${CATS.slice(1).map(([k,l],i)=>{const used=PRODUCTS.filter(p=>inCat(p,k)).length;
         return `<div class="colcard"><div style="min-width:0;flex:1"><span class="mono" style="font-size:12px;color:var(--muted)">${used} prenda${used===1?"":"s"}</span>
           <div class="row" style="gap:4px;flex-wrap:nowrap"><span class="mono" style="font-size:12px;color:var(--muted)">${i+1}</span><input type="text" value="${esc(l)}" data-catname="${i}" aria-label="Nombre de la categoría">
           <button class="x" type="button" data-catmv="${i}" data-d="-1" aria-label="Subir" ${i===0?"disabled":""}>↑</button><button class="x" type="button" data-catmv="${i}" data-d="1" aria-label="Bajar" ${i===CATS.length-2?"disabled":""}>↓</button></div>
@@ -4088,7 +4091,7 @@ function admAttrs(){
           <label class="btn" style="padding:2px 8px;font-size:11px;cursor:pointer">${(CAT_META[k]||{}).cover&&PH[(CAT_META[k]||{}).cover]?"Cambiar portada":"Foto de portada"}<input type="file" accept="image/*" hidden data-catcover="${esc(k)}"></label>
           ${(CAT_META[k]||{}).cover&&PH[(CAT_META[k]||{}).cover]?`<button class="x" type="button" data-catcoverdel="${esc(k)}" aria-label="Quitar portada" style="font-size:14px">×</button>`:""}</div></div>
           ${(CAT_META[k]||{}).cover&&PH[(CAT_META[k]||{}).cover]?`<img src="${PH[CAT_META[k].cover]}" alt="" style="width:44px;height:55px;object-fit:cover;border-radius:4px;flex:none">`:""}
-          ${CAT_ASK===k?(used?`<label class="field" style="flex:0 0 140px"><span>Mover sus prendas a</span><select data-catmove="${esc(k)}"><option value="">Elige…</option>${CATS.slice(1).filter(c=>c[0]!==k).map(c=>`<option value="${esc(c[0])}">${esc(c[1])}</option>`).join("")}<option value="__none">Sin categoría</option></select></label>`
+          ${CAT_ASK===k?(used?`<label class="field" style="flex:0 0 140px"><span>Mover sus prendas a</span><select data-catmove="${esc(k)}"><option value="">Elige…</option>${CATS.slice(1).filter(c=>c[0]!==k).map(c=>`<option value="${esc(c[0])}">${esc(c[1])}</option>`).join("")}<option value="__none">Sin categoría (siguen a la venta)</option><option value="__hide">Ocultar sus ${used} prendas de la web</option><option value="__del">Eliminar sus ${used} prendas del catálogo</option></select></label>`
             :`<button class="btn" type="button" data-catdelyes="${esc(k)}" style="padding:4px 8px;font-size:12px;color:var(--danger);border-color:var(--danger)">Eliminar</button>`)
           :`<button class="x" type="button" data-catdel="${esc(k)}" aria-label="Eliminar ${esc(l)}">×</button>`}</div>`}).join("")}</div>
       <form id="ncatForm" class="row" novalidate style="align-items:flex-end">
@@ -4261,6 +4264,7 @@ $("#admin").addEventListener("click",e=>{
   const pe=e.target.closest("[data-pedit]");if(pe){EDIT_PID=pe.dataset.pedit;DEL_ASK=null;admCatalog();return}
   if(e.target.closest("[data-npclose]")){EDIT_PID=null;admCatalog();return}
   const na=e.target.closest("[data-npall]");if(na){document.querySelectorAll(".npC").forEach(c=>c.checked=na.dataset.npall==="1");$("#npCount").textContent=document.querySelectorAll(".npC:checked").length;return}
+  const bv=e.target.closest("[data-bulkvis]");if(bv){const off=bv.dataset.bulkvis==="off";admProdList(true).forEach(p=>{if(!!p.off!==off)setProd(p,{off})});saveCatalog();renderCats();admCatalog();$("#attrSaved")&&($("#attrSaved").hidden=false);return}
   const pd=e.target.closest("[data-pdel]");if(pd){DEL_ASK=pd.dataset.pdel;admCatalog();return}
   if(e.target.closest("[data-pdelno]")){DEL_ASK=null;admCatalog();return}
   const py=e.target.closest("[data-pdelyes]");if(py){const id=py.dataset.pdelyes,i=PRODUCTS.findIndex(p=>p.id===id);if(i>=0)PRODUCTS.splice(i,1);
@@ -4309,8 +4313,14 @@ $("#admin").addEventListener("change",e=>{
   if(t.dataset.catcover!=null&&t.files[0]){const k=t.dataset.catcover;shrinkImage(t.files[0],900).then(async d=>{const key="cat_"+k+"_"+Date.now().toString(36);await phPut(key,d);
     const old=(CAT_META[k]||{}).cover;if(old)phDel(old);CAT_META[k]={...(CAT_META[k]||{}),cover:key};saveCatMeta();renderCats();admAttrs();$("#attrSaved").hidden=false}).catch(err=>{$("#ncatErr").textContent=err.message})}
   if(t.dataset.catname!=null){const v=t.value.trim();if(v){CATS[+t.dataset.catname+1][1]=v;saveCats();renderCats();$("#attrSaved").hidden=false}}
-  if(t.dataset.catmove!=null&&t.value){const from=t.dataset.catmove,to=t.value==="__none"?"":t.value;
-    PRODUCTS.forEach(p=>{if(p.cat===from)setProd(p,{cat:to})});saveCatalog();CATS=CATS.filter(c=>c[0]!==from);saveCats();CAT_ASK=null;if(S.cat===from)S.cat="todo";renderCats();admAttrs();$("#attrSaved").hidden=false}
+  if(t.dataset.catmove!=null&&t.value){const from=t.dataset.catmove,v=t.value,list=PRODUCTS.filter(p=>inCat(p,from));
+    if(v==="__del"&&!confirm(`Se eliminarán ${list.length} prendas del catálogo. ¿Seguro?`)){t.value="";return}
+    list.forEach(p=>{const cats=(p.cats||[]).filter(c=>c!==from);
+      if(v==="__del"){const i=PRODUCTS.indexOf(p);if(i>=0)PRODUCTS.splice(i,1);
+        if((CATALOG_X.__new||[]).some(x=>x.id===p.id))CATALOG_X.__new=CATALOG_X.__new.filter(x=>x.id!==p.id);else CATALOG_X.__deleted=[...(CATALOG_X.__deleted||[]),p.id];delete CATALOG_X[p.id];return}
+      if(v==="__none"||v==="__hide")setProd(p,{cat:p.cat===from?(cats[0]||""):p.cat,cats,...(v==="__hide"?{off:true}:{})});
+      else setProd(p,{cat:p.cat===from?v:p.cat,cats:[...new Set([...(cats),v])]})});
+    saveCatalog();CATS=CATS.filter(c=>c[0]!==from);saveCats();CAT_ASK=null;if(S.cat===from)S.cat="todo";renderCats();admAttrs();$("#attrSaved").hidden=false}
   if(t.dataset.shname!=null){const v=t.value.trim(),id=t.dataset.shname;if(v){const c=SHAPES_X.custom.find(x=>x.id===id);if(c)c.label=v;else SHAPES_X.labels[id]=v;saveShapes();$("#attrSaved").hidden=false}}
   if(t.dataset.shtint!=null){const c=SHAPES_X.custom.find(x=>x.id===t.dataset.shtint);c.tint=t.checked;saveShapes();admAttrs();renderCats();$("#attrSaved").hidden=false}
   if(t.dataset.shsleeve!=null){const c=SHAPES_X.custom.find(x=>x.id===t.dataset.shsleeve);c.sleeves=t.checked;saveShapes();$("#attrSaved").hidden=false}
