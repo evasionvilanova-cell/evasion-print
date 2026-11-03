@@ -39,6 +39,17 @@ export async function POST(req) {
     for (const { key: ck, u } of all) {
       if (!u || !u.email) continue;
       const em = String(u.email).trim().toLowerCase();
+      // cambio del email de acceso: se conserva la contraseña
+      if (u.prevEmail) {
+        const prev = String(u.prevEmail).trim().toLowerCase();
+        delete u.prevEmail;
+        const had = prev && prev !== em ? (await q("select 1 from users where email=$1", [prev])).rows[0] : null;
+        if (had) { // si ya se cambió en un guardado anterior, no hay nada que hacer
+          const taken = (await q("select client_key from users where email=$1", [em])).rows[0];
+          if (taken) return fail(`El email ${em} ya tiene acceso a otra área (${taken.client_key}).`, 409);
+          await q("update users set email=$2 where email=$1", [prev, em]);
+        }
+      }
       if (u.pass) {
         if (String(u.pass).length < 8) return fail(`La contraseña de ${em} necesita al menos 8 caracteres.`);
         await q(

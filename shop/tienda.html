@@ -474,6 +474,7 @@ form.step>.field,#addrBox>.field,#addrBox>.row{flex:none}
 .adm-h .seg{display:inline-flex}td.r,th.r{text-align:right}
 .phflash{outline:3px solid var(--ok,#13874a);outline-offset:2px;transition:outline-color .6s}
 .colog{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px dashed var(--line);border-radius:8px;margin-bottom:6px}
+.ceuser{display:flex;flex-direction:column;gap:8px;padding:10px;border:1px solid var(--line);border-radius:8px}
 .tfonts{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:6px;margin-top:4px}
 .tfont{border:1px solid var(--line,#ddd);background:#fff;border-radius:8px;padding:8px 4px 6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;color:inherit}
 .tfont b{font-size:20px;line-height:1.1;white-space:nowrap}.tfont small{font-size:11px;opacity:.7}
@@ -3196,6 +3197,15 @@ function editClientSheet(key){
         <label class="btn" style="cursor:pointer">${c.crest?"Cambiar escudo o logo":"Subir escudo o logo"}<input type="file" id="ceCrest" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden></label>
         ${c.crest?`<button class="btn ghost" type="button" id="ceCrestDel">Quitar</button>`:""}</div>
       <label class="toggle" style="font-weight:500"><input type="checkbox" id="ceTransfer"${c.transfer?" checked":""}> Puede pagar por transferencia bancaria</label>
+      <div class="label">Acceso al área</div>
+      ${(c.users||[]).length?(c.users||[]).map((u,i)=>`<div class="ceuser"><div class="formgrid">
+          <label class="field"><span>Nombre</span><input type="text" data-ceuname="${i}" value="${esc(u.name||"")}"></label>
+          <label class="field"><span>Email de acceso</span><input type="email" data-ceuemail="${i}" data-old="${esc(u.email)}" value="${esc(u.email)}" autocomplete="off"></label></div>
+        <div class="row" style="gap:10px;align-items:center;flex-wrap:wrap"><button class="btn" type="button" data-ceupass="${key}|${esc(u.email)}">Generar contraseña nueva</button>
+          ${NEWPASS[u.email]?`<span class="note ok" style="user-select:all">Contraseña nueva: <b class="mono">${esc(NEWPASS[u.email])}</b> · pásasela al cliente; ya está guardada</span>`:`<small class="dim">Con el email y esta contraseña entra en «Área de cliente».</small>`}</div></div>`).join("")
+        :`<p class="dim" style="margin:0">Este cliente aún no tiene usuarios. Añádelos desde su ficha («Usuarios con acceso»).</p>`}
+      <label class="field"><span>Email para avisos y facturas</span><input type="email" id="ceNotify" value="${esc(c.notifyEmail||"")}" placeholder="p. ej. administracion@empresa.com"></label>
+      <small class="dim" style="margin-top:-6px">Opcional. Si lo pones, las confirmaciones de pedido, los mensajes sobre los pedidos y las facturas se envían también a este email (además del de quien hace el pedido).</small>
       <div class="label">Datos de facturación</div>${billingFields({name:b.name||"",cif:b.cif||"",addr:b.addr||"",zip:b.zip||"",city:b.city||"",province:b.province||""},"ce")}
       <div class="err" id="ceErr" style="color:var(--danger);font-size:14px"></div>
       <button class="btn primary big" type="submit" style="width:max-content">Guardar cambios</button></form></div></div>`;
@@ -3208,6 +3218,7 @@ document.addEventListener("click",e=>{
     DEL_CLIENT=null;const ex=loadExtra(),adm=loadAdm();const c=allClients()[k];
     (c.products||[]).forEach(p=>{delete adm.prices[p.id]});delete adm.users[k];delete ex[k];saveAdm(adm);saveExtra(ex);
     $("#sheetRoot").innerHTML="";renderAdmin("admin-clientes");return}
+  const cp=e.target.closest("[data-ceupass]");if(cp){const [k,em]=cp.dataset.ceupass.split("|"),pw=genPass();editUser(k,em,u=>({...u,pass:pw}));NEWPASS[em]=pw;editClientSheet(k);return}
   const rs=e.target.closest("[data-ureset]");if(rs){const [k,em]=rs.dataset.ureset.split("|"),pw=genPass();editUser(k,em,u=>({...u,pass:pw}));NEWPASS[em]=pw;clientSheet(k);return}
   const rm=e.target.closest("[data-urm]");if(rm){const [k,em]=rm.dataset.urm.split("|");editUser(k,em,()=>null);clientSheet(k);return}
 });
@@ -3215,7 +3226,16 @@ document.addEventListener("change",e=>{if(e.target.id!=="ceCrest"||!e.target.fil
   shrinkImage(e.target.files[0],400).then(d=>{const ex=ensureExtra(k);ex[k].crest=d;saveExtra(ex);editClientSheet(k)})});
 document.addEventListener("submit",e=>{if(e.target.id!=="ceForm")return;e.preventDefault();const k=e.target.dataset.key,name=$("#ceName").value.trim();
   if(!name)return $("#ceErr").textContent="Escribe el nombre del cliente.";
-  const ex=ensureExtra(k);Object.assign(ex[k],{name,type:$("#ceType").value.trim(),contact:$("#ceTel").value.trim(),transfer:$("#ceTransfer").checked,billing:{...readBilling("ce"),cif:$("#ceCif").value.trim().toUpperCase()}});
+  const okEm=v=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v),notify=$("#ceNotify").value.trim().toLowerCase();
+  if(notify&&!okEm(notify))return $("#ceErr").textContent="Revisa el email para avisos y facturas.";
+  // usuarios: nombre y email de acceso (si cambia el email, la contraseña se mantiene)
+  const changes=[];for(const inp of document.querySelectorAll("[data-ceuemail]")){const i=+inp.dataset.ceuemail,old=inp.dataset.old,nw=inp.value.trim().toLowerCase(),nm=(document.querySelector(`[data-ceuname="${i}"]`)||{}).value||"";
+    if(!okEm(nw))return $("#ceErr").textContent=`Revisa el email de acceso «${nw}».`;
+    if(nw!==old.toLowerCase()){const f=findUser(nw);if(f)return $("#ceErr").textContent=`El email ${nw} ya tiene acceso al área de ${f.c.name}.`}
+    changes.push({old,nw,nm:nm.trim()})}
+  const ex0=ensureExtra(k);ex0[k].users=(ex0[k].users||[]).map(u=>{const ch=changes.find(c=>c.old.toLowerCase()===String(u.email).toLowerCase());if(!ch)return u;
+    const nu={...u,name:ch.nm||u.name,email:ch.nw};if(ch.nw!==ch.old.toLowerCase()){nu.prevEmail=ch.old;if(NEWPASS[ch.old]){NEWPASS[ch.nw]=NEWPASS[ch.old];delete NEWPASS[ch.old]}}return nu});
+  const ex=ex0;Object.assign(ex[k],{notifyEmail:notify,name,type:$("#ceType").value.trim(),contact:$("#ceTel").value.trim(),transfer:$("#ceTransfer").checked,billing:{...readBilling("ce"),cif:$("#ceCif").value.trim().toUpperCase()}});
   saveExtra(ex);clientSheet(k)});
 
 /* ===== Rentabilidad (estimada) =====
@@ -3366,7 +3386,7 @@ function facInvHTML(){
         <small class="dim" style="flex-basis:100%">Si anulas una factura entera, sus pedidos vuelven a quedar sin facturar y puedes hacer la factura correcta desde «Albaranes».</small></form></td></tr>`:""}`}).join("")}
     </tbody></table></div>`:`<div class="step"><p class="dim" style="margin:0">No hay facturas en este periodo${FAC.client?" para este cliente":""}.</p></div>`}`;
 }
-function facEmail(i){const o=loadOrders().find(o=>i.refs.includes(o.ref));const c=allClients()[i.client]||{};return (o&&o.email)||c.email||""}
+function facEmail(i){const o=loadOrders().find(o=>i.refs.includes(o.ref));const c=allClients()[i.client]||{};return c.notifyEmail||(o&&o.email)||((c.users||[])[0]||{}).email||""}
 function facAlbHTML(){
   const L=facOrders(),sel=FAC.sel.filter(r=>L.some(o=>o.ref===r&&!o.invoice)),S=L.filter(o=>sel.includes(o.ref)),tot=r2(S.reduce((a,o)=>a+o.total,0));
   const owners=[...new Set(S.map(o=>o.client||""))],mixed=owners.length>1,elig=o=>!o.invoice&&(o.paid||!["card","bizum"].includes(o.pay));
