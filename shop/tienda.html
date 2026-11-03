@@ -2844,6 +2844,8 @@ const MSG_TPL={
   entregado:{label:"Pedido entregado · gracias",text:o=>`Hola ${o.name.split(" ")[0]}, ${o.ship==="tienda"?"gracias por pasar a recoger":"tu pedido ya está entregado"} el pedido ${o.ref}. Esperamos que os guste. Si necesitáis repetir o algo más, aquí estamos. ¡Gracias!`},
   listo:{label:"Pedido listo",text:o=>`Hola ${o.name.split(" ")[0]}, tu pedido ${o.ref} ya está listo${o.ship==="tienda"?" para recoger en Evasion Running (Vilanova i la Geltrú)":" y sale hoy hacia tu dirección"}. ¡Gracias!`}
 };
+// a quién va el mensaje: el email de avisos del cliente o su email de acceso actual; si no es cliente, el del pedido
+function msgTo(o){const c=o.client&&allClients()[o.client];if(!c)return o.email||"";const u=(c.users||[])[0];return [...new Set([c.notifyEmail,u&&u.email].filter(Boolean))].join(", ")||o.email||""}
 function msgBox(o,auto){
   const def=(o.refunds||[]).some(r=>!r.done)||o.items.some(i=>(i.removed||[]).length)?"cambios":MSG_TPL[o.status]?o.status:"libre";
   const tpl=MSG_DRAFT&&MSG_DRAFT.ref===o.ref?MSG_DRAFT.tpl:def;
@@ -2852,7 +2854,8 @@ function msgBox(o,auto){
     <label class="field"><span>Plantilla</span><select id="odTpl" data-ref="${o.ref}">${Object.entries(MSG_TPL).map(([k,t])=>`<option value="${k}"${tpl===k?" selected":""}>${t.label}</option>`).join("")}</select></label>
     <label class="field"><span>Texto (edítalo como quieras)</span><textarea id="odMsgTxt" data-ref="${o.ref}" style="font-family:var(--f-body);min-height:150px">${esc(text)}</textarea></label>
     <div class="row" style="gap:6px"><button class="btn" type="button" id="odCopy">Copiar</button><button class="btn" type="button" id="odClear">Borrar texto</button>${BOOT.mail?`<button class="btn primary" type="button" id="odMail" data-ref="${o.ref}">Enviar por email</button>`:""}<button class="btn${BOOT.mail?"":" primary"}" type="button" id="odSent" data-ref="${o.ref}">Marcar como enviado</button></div>
-    <span class="dim" id="odMailMsg">${BOOT.mail?`Se envía a <b>${esc(o.email)}</b> desde info@evasionprint.com. Si responde, te llega a info@.`:`Cópialo y envíalo por WhatsApp o email, y márcalo como enviado. (El envío por email directo se activa al configurar Resend.)`}</span>
+    ${BOOT.mail?`<label class="field"><span>Para (puedes poner varios separados por comas)</span><input type="text" id="odTo" value="${esc(msgTo(o))}"></label>`:""}
+    <span class="dim" id="odMailMsg">${BOOT.mail?`Se envía desde info@evasionprint.com. Si responde, te llega a info@.`:`Cópialo y envíalo por WhatsApp o email, y márcalo como enviado. (El envío por email directo se activa al configurar Resend.)`}</span>
     ${(o.messages||[]).length?`<div class="label" style="margin-top:6px">Mensajes enviados</div>${o.messages.slice().reverse().map(m=>`<div class="note" style="white-space:pre-wrap"><small class="dim">${dshort(m.date)} ${new Date(m.date).toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"})}</small><br>${esc(m.text)}</div>`).join("")}`:""}
   </div>`;
 }
@@ -4372,7 +4375,7 @@ $("#sheetRoot").addEventListener("click",e=>{
   if(e.target.closest("#odClear")){const ta=$("#odMsgTxt");ta.value="";const ref=ta.dataset.ref;MSG_DRAFT={ref,tpl:$("#odTpl").value,text:""};patchOrder(ref,{msgDraft:""});ta.focus();return}
   const om=e.target.closest("#odMail");if(om){const ref=om.dataset.ref,txt=$("#odMsgTxt").value.trim();if(!txt){$("#odMsgTxt").focus();return}
     om.disabled=true;om.textContent="Enviando…";
-    api("/api/admin/order-mail",{ref,text:txt,tpl:$("#odTpl").value}).then(r=>{patchOrderLocal(ref,{messages:r.messages,msgDraft:null});MSG_DRAFT=null;saved(true);orderSheet(ref)})
+    api("/api/admin/order-mail",{ref,text:txt,tpl:$("#odTpl").value,to:($("#odTo")||{}).value||""}).then(r=>{patchOrderLocal(ref,{messages:r.messages,msgDraft:null});MSG_DRAFT=null;saved(true);orderSheet(ref)})
       .catch(x=>{om.disabled=false;om.textContent="Enviar por email";$("#odMailMsg").innerHTML=`<span style="color:var(--danger)">${esc(x.message)}</span>`});return}
   const os=e.target.closest("#odSent");if(os){const ref=os.dataset.ref,txt=$("#odMsgTxt").value.trim();if(!txt){$("#odMsgTxt").focus();return}
     const o=loadOrders().find(x=>x.ref===ref);patchOrder(ref,{messages:[...(o.messages||[]),{date:new Date().toISOString(),text:txt}],msgDraft:null});MSG_DRAFT=null;orderSheet(ref);return}
