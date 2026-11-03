@@ -475,6 +475,7 @@ form.step>.field,#addrBox>.field,#addrBox>.row{flex:none}
 .phflash{outline:3px solid var(--ok,#13874a);outline-offset:2px;transition:outline-color .6s}
 .colog{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px dashed var(--line);border-radius:8px;margin-bottom:6px}
 .ceuser{display:flex;flex-direction:column;gap:8px;padding:10px;border:1px solid var(--line);border-radius:8px}
+.npxcats .checks{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:14px}.npxcats label[hidden]{display:none}
 .tfonts{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:6px;margin-top:4px}
 .tfont{border:1px solid var(--line,#ddd);background:#fff;border-radius:8px;padding:8px 4px 6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;color:inherit}
 .tfont b{font-size:20px;line-height:1.1;white-space:nowrap}.tfont small{font-size:11px;opacity:.7}
@@ -3880,6 +3881,8 @@ function prodForm(p){
       <label class="field"><span>Forma</span><select id="npShape"><option value="none"${p&&(p.shape==="none"||!p.shape)?" selected":""}>Sin forma (sin vista de prenda)</option>${allShapes().map(sh=>`<option value="${esc(sh.id)}"${(p?p.shape===sh.id:sh.id==="tee")?" selected":""}>${esc(sh.label)}</option>`).join("")}</select></label>
       <label class="field"><span>Precio de venta</span><input type="number" step="0.01" min="0" id="npPrice" value="${p?p.price.toFixed(2):""}"></label>
     </div>
+    <div class="npxcats"><div class="label">También aparece en <small class="dim" style="text-transform:none;letter-spacing:0">(opcional: categorías extra además de la principal)</small></div>
+      <div class="checks">${CATS.slice(1).map(([k,l])=>`<label${p&&p.cat===k?' hidden':''} data-npxk="${esc(k)}"><input type="checkbox" class="npX" value="${esc(k)}"${p&&p.cat!==k&&(p.cats||[]).includes(k)?" checked":""}> ${esc(l)}</label>`).join("")}</div></div>
     <div class="row" style="justify-content:space-between"><div class="label">Colores disponibles · <span id="npCount">${sel.length}</span> marcados</div>
       <div class="row"><button class="btn" type="button" data-npall="1" style="padding:4px 10px;font-size:13px">Todos</button><button class="btn" type="button" data-npall="0" style="padding:4px 10px;font-size:13px">Ninguno</button></div></div>
     <div class="csearch">
@@ -4204,7 +4207,7 @@ $("#admin").addEventListener("submit",e=>{
     const pickedS=[...document.querySelectorAll(".npS:checked")].filter(x=>groups.includes(x.dataset.g)).map(x=>x.value);
     const allS=SIZE_GROUPS.filter(g=>groups.includes(g.id)).flatMap(g=>g.sizes);
     if(groups.length&&!pickedS.length){$("#npErr").textContent="Deja marcada al menos una talla.";return}
-    const data={sizeList:pickedS.length===allS.length?null:pickedS,minQty:Math.max(0,parseInt($("#npMin").value)||0),cat:$("#npCat").value,name,shape:$("#npShape").value,price,colors,sizes:groups,sport:$("#npSport").checked,tag:$("#npTag").value.trim(),featured:$("#npFeat").checked,featAt:$("#npFeat").checked?((prodById(EDIT_PID)||{}).featAt||Date.now()):0};
+    const data={sizeList:pickedS.length===allS.length?null:pickedS,minQty:Math.max(0,parseInt($("#npMin").value)||0),cat:$("#npCat").value,name,shape:$("#npShape").value,price,colors,sizes:groups,sport:$("#npSport").checked,tag:$("#npTag").value.trim(),featured:$("#npFeat").checked,cats:[...new Set([$("#npCat").value,...[...document.querySelectorAll(".npX:checked")].map(x=>x.value).filter(v=>v!==$("#npCat").value)])],featAt:$("#npFeat").checked?((prodById(EDIT_PID)||{}).featAt||Date.now()):0};
     {const old=(e.target.dataset.edit&&prodById(e.target.dataset.edit)||{}).info||{}, comp=$("#npComp").value.trim();
      data.desc=$("#npDesc").value.trim();
      data.info={...old,comp,gsm:(comp.match(/(\d{2,3})\s*g\/m/)||[])[1]||"",pack:+$("#npPack").value||0,box:+$("#npBox").value||0,taric:$("#npTaric").value.trim(),origin:$("#npOrigin").value.trim(),
@@ -4337,6 +4340,7 @@ $("#admin").addEventListener("change",e=>{
   if(t.dataset.chex2!=null){PALETTE=PALETTE.map((x,i)=>i===+t.dataset.chex2?[x[0],x[1],x[2],t.value]:x);savePalette();renderCats();$("#attrSaved").hidden=false}
   if(t.dataset.cname!=null){const v=t.value.trim();if(v){PALETTE=PALETTE.map((x,i)=>i===+t.dataset.cname?[x[0],v,x[2]]:x);savePalette();$("#attrSaved").hidden=false}}
   if(t.dataset.glabel!=null){const v=t.value.trim();if(v){SIZE_GROUPS[+t.dataset.glabel].label=v;saveSizes();$("#attrSaved").hidden=false}}
+  if(t.id==="npCat"){document.querySelectorAll("[data-npxk]").forEach(l=>{const on=l.dataset.npxk===t.value;l.hidden=on;if(on)l.querySelector("input").checked=false})}
   if(t.classList&&t.classList.contains("npC")){$("#npCount").textContent=document.querySelectorAll(".npC:checked").length}
   if(t.dataset.pon){const p=PRODUCTS.find(x=>x.id===t.dataset.pon);p.off=!t.checked;CATALOG_X[p.id]={...(CATALOG_X[p.id]||{}),off:p.off};saveCatalog();renderCats();t.nextElementSibling.textContent=p.off?"Oculta":"Visible"}
 });
