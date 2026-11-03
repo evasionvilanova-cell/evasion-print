@@ -3201,8 +3201,11 @@ function editClientSheet(key){
       ${(c.users||[]).length?(c.users||[]).map((u,i)=>`<div class="ceuser"><div class="formgrid">
           <label class="field"><span>Nombre</span><input type="text" data-ceuname="${i}" value="${esc(u.name||"")}"></label>
           <label class="field"><span>Email de acceso</span><input type="email" data-ceuemail="${i}" data-old="${esc(u.email)}" value="${esc(u.email)}" autocomplete="off"></label></div>
-        <div class="row" style="gap:10px;align-items:center;flex-wrap:wrap"><button class="btn" type="button" data-ceupass="${key}|${esc(u.email)}">Generar contraseña nueva</button>
-          ${NEWPASS[u.email]?`<span class="note ok" style="user-select:all">Contraseña nueva: <b class="mono">${esc(NEWPASS[u.email])}</b> · pásasela al cliente; ya está guardada</span>`:`<small class="dim">Con el email y esta contraseña entra en «Área de cliente».</small>`}</div></div>`).join("")
+        <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap"><input type="text" data-ceupw="${i}" placeholder="Contraseña nueva (p. ej. demo1234)" autocomplete="off" aria-label="Contraseña nueva" style="flex:1 1 200px;max-width:260px">
+          <button class="btn" type="button" data-ceuset="${key}|${esc(u.email)}|${i}">Poner esta</button><button class="linkbtn" type="button" data-ceupass="${key}|${esc(u.email)}">o generar una</button></div>
+        <div class="err" data-ceupwerr="${i}" style="color:var(--danger);font-size:13px"></div>
+        <div class="row" style="gap:10px;align-items:center;flex-wrap:wrap">
+          ${NEWPASS[u.email]?`<span class="note ok" style="user-select:all">Contraseña nueva: <b class="mono">${esc(NEWPASS[u.email])}</b> · pásasela al cliente; ya está guardada</span>`:`<small class="dim">El cliente la puede cambiar luego desde «Mi perfil».</small>`}</div></div>`).join("")
         :`<p class="dim" style="margin:0">Este cliente aún no tiene usuarios. Añádelos desde su ficha («Usuarios con acceso»).</p>`}
       <label class="field"><span>Email para avisos y facturas</span><input type="email" id="ceNotify" value="${esc(c.notifyEmail||"")}" placeholder="p. ej. administracion@empresa.com"></label>
       <small class="dim" style="margin-top:-6px">Opcional. Si lo pones, las confirmaciones de pedido, los mensajes sobre los pedidos y las facturas se envían también a este email (además del de quien hace el pedido).</small>
@@ -3218,6 +3221,9 @@ document.addEventListener("click",e=>{
     DEL_CLIENT=null;const ex=loadExtra(),adm=loadAdm();const c=allClients()[k];
     (c.products||[]).forEach(p=>{delete adm.prices[p.id]});delete adm.users[k];delete ex[k];saveAdm(adm);saveExtra(ex);
     $("#sheetRoot").innerHTML="";renderAdmin("admin-clientes");return}
+  const cs=e.target.closest("[data-ceuset]");if(cs){const [k,em,i]=cs.dataset.ceuset.split("|"),pw=(document.querySelector(`[data-ceupw="${i}"]`)||{}).value||"";
+    if(pw.trim().length<8){document.querySelector(`[data-ceupwerr="${i}"]`).textContent="Mínimo 8 caracteres.";return}
+    editUser(k,em,u=>({...u,pass:pw.trim()}));NEWPASS[em]=pw.trim();editClientSheet(k);return}
   const cp=e.target.closest("[data-ceupass]");if(cp){const [k,em]=cp.dataset.ceupass.split("|"),pw=genPass();editUser(k,em,u=>({...u,pass:pw}));NEWPASS[em]=pw;editClientSheet(k);return}
   const rs=e.target.closest("[data-ureset]");if(rs){const [k,em]=rs.dataset.ureset.split("|"),pw=genPass();editUser(k,em,u=>({...u,pass:pw}));NEWPASS[em]=pw;clientSheet(k);return}
   const rm=e.target.closest("[data-urm]");if(rm){const [k,em]=rm.dataset.urm.split("|");editUser(k,em,()=>null);clientSheet(k);return}
