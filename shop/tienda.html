@@ -2704,6 +2704,7 @@ function loadOrders(){let o=[];try{o=JSON.parse(STORE.getItem("ep_orders")||"[]"
   let st={};try{st=JSON.parse(STORE.getItem("ep_ostate")||"{}")}catch(e){}
   return [...o,...SEED_ORDERS.filter(s=>!o.find(x=>x.ref===s.ref))].map(x=>st[x.ref]?{...x,...st[x.ref]}:x).sort((a,b)=>b.date.localeCompare(a.date));}
 function saveOrder(o){let a=[];try{a=JSON.parse(STORE.getItem("ep_orders")||"[]")}catch(e){}a.unshift(o);try{STORE.setItem("ep_orders",JSON.stringify(a))}catch(e){}}
+function patchOrderLocal(ref,patch){let st={};try{st=JSON.parse(STORE.getItem("ep_ostate")||"{}")}catch(e){}st[ref]={...(st[ref]||{}),...patch};try{STORE.setItem("ep_ostate",JSON.stringify(st))}catch(e){}}
 function patchOrder(ref,patch){let st={};try{st=JSON.parse(STORE.getItem("ep_ostate")||"{}")}catch(e){}st[ref]={...(st[ref]||{}),...patch};try{STORE.setItem("ep_ostate",JSON.stringify(st))}catch(e){}
   if(IS_ADMIN)api("/api/admin/orders",{ref,patch}).then(()=>saved(true)).catch(e=>saved(false,e.message))}
 let ADMIN=null; try{ADMIN=JSON.parse(STORE.getItem("ep_adminsess")||"null")}catch(e){}
@@ -2838,17 +2839,19 @@ const MSG_TPL={
   incidencia:{label:"Archivo con poca resolución",text:o=>`Hola ${o.name.split(" ")[0]}, hemos revisado el archivo de tu pedido ${o.ref} y no tiene resolución suficiente para que quede nítido. ¿Nos puedes enviar el logo en PDF, SVG o PNG grande? En cuanto lo tengamos lo producimos.`},
   cambios:{label:"Cambios en el pedido y devolución",text:o=>{const rem=o.items.flatMap(i=>(i.removed||[]).map(x=>`· ${x.label}${x.amount?` (${eur(x.amount)})`:""}`));const tot=(o.refunds||[]).reduce((a,r)=>a+r.amount,0);
     return `Hola ${o.name.split(" ")[0]}, hemos revisado tu pedido ${o.ref} y hemos hecho estos cambios:\n${rem.join("\n")||"· "}\n${tot?`Te devolvemos ${eur(tot)} en la misma ${o.pay==="bizum"?"cuenta de Bizum":"tarjeta"} con la que pagaste. Puede tardar de 3 a 5 días en aparecer.\n`:""}Si no es lo que querías, contéstanos y lo arreglamos antes de producir.`}},
+  produccion:{label:"En producción",text:o=>`Hola ${o.name.split(" ")[0]}, ya hemos revisado tu pedido ${o.ref} y está en producción. Te avisamos en cuanto esté listo${o.due?` (lo esperamos para el ${new Date(o.due).toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"})})`:""}.`},
+  entregado:{label:"Pedido entregado · gracias",text:o=>`Hola ${o.name.split(" ")[0]}, ${o.ship==="tienda"?"gracias por pasar a recoger":"tu pedido ya está entregado"} el pedido ${o.ref}. Esperamos que os guste. Si necesitáis repetir o algo más, aquí estamos. ¡Gracias!`},
   listo:{label:"Pedido listo",text:o=>`Hola ${o.name.split(" ")[0]}, tu pedido ${o.ref} ya está listo${o.ship==="tienda"?" para recoger en Evasion Running (Vilanova i la Geltrú)":" y sale hoy hacia tu dirección"}. ¡Gracias!`}
 };
 function msgBox(o,auto){
-  const def=(o.refunds||[]).some(r=>!r.done)||o.items.some(i=>(i.removed||[]).length)?"cambios":o.status==="listo"?"listo":o.status==="incidencia"?"incidencia":"libre";
+  const def=(o.refunds||[]).some(r=>!r.done)||o.items.some(i=>(i.removed||[]).length)?"cambios":MSG_TPL[o.status]?o.status:"libre";
   const tpl=MSG_DRAFT&&MSG_DRAFT.ref===o.ref?MSG_DRAFT.tpl:def;
   const text=MSG_DRAFT&&MSG_DRAFT.ref===o.ref?MSG_DRAFT.text:(o.msgDraft!=null?o.msgDraft:MSG_TPL[tpl].text(o));
   return `<div class="step"><div class="step-h"><h3>Mensaje al cliente</h3></div>
     <label class="field"><span>Plantilla</span><select id="odTpl" data-ref="${o.ref}">${Object.entries(MSG_TPL).map(([k,t])=>`<option value="${k}"${tpl===k?" selected":""}>${t.label}</option>`).join("")}</select></label>
     <label class="field"><span>Texto (edítalo como quieras)</span><textarea id="odMsgTxt" data-ref="${o.ref}" style="font-family:var(--f-body);min-height:150px">${esc(text)}</textarea></label>
-    <div class="row" style="gap:6px"><button class="btn" type="button" id="odCopy">Copiar</button><button class="btn" type="button" id="odClear">Borrar texto</button><button class="btn primary" type="button" id="odSent" data-ref="${o.ref}">Marcar como enviado</button></div>
-    <span class="dim">Se envía a ${esc(o.email)}. En la web real el botón lo enviará por email directamente.</span>
+    <div class="row" style="gap:6px"><button class="btn" type="button" id="odCopy">Copiar</button><button class="btn" type="button" id="odClear">Borrar texto</button>${BOOT.mail?`<button class="btn primary" type="button" id="odMail" data-ref="${o.ref}">Enviar por email</button>`:""}<button class="btn${BOOT.mail?"":" primary"}" type="button" id="odSent" data-ref="${o.ref}">Marcar como enviado</button></div>
+    <span class="dim" id="odMailMsg">${BOOT.mail?`Se envía a <b>${esc(o.email)}</b> desde info@evasionprint.com. Si responde, te llega a info@.`:`Cópialo y envíalo por WhatsApp o email, y márcalo como enviado. (El envío por email directo se activa al configurar Resend.)`}</span>
     ${(o.messages||[]).length?`<div class="label" style="margin-top:6px">Mensajes enviados</div>${o.messages.slice().reverse().map(m=>`<div class="note" style="white-space:pre-wrap"><small class="dim">${dshort(m.date)} ${new Date(m.date).toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"})}</small><br>${esc(m.text)}</div>`).join("")}`:""}
   </div>`;
 }
@@ -4311,7 +4314,9 @@ document.addEventListener("paste",async e=>{
 /* hojas (pedido, cliente) */
 $("#sheetRoot").addEventListener("change",e=>{
   const t=e.target;
-  if(t.id==="odStatus"){patchOrder(t.dataset.ref,{status:t.value});orderSheet(t.dataset.ref)}
+  if(t.id==="odStatus"){patchOrder(t.dataset.ref,{status:t.value,msgDraft:null});MSG_DRAFT=null;orderSheet(t.dataset.ref);
+    // el mensaje al cliente queda preparado con la plantilla del estado nuevo
+    if(MSG_TPL[t.value])setTimeout(()=>{const b=$("#odMsgTxt");if(b){b.closest(".step").scrollIntoView({block:"center",behavior:"smooth"});b.classList.add("phflash");setTimeout(()=>b.classList.remove("phflash"),1600)}},50)}
   if(t.id==="odTpl"){const o=loadOrders().find(x=>x.ref===t.dataset.ref);MSG_DRAFT={ref:o.ref,tpl:t.value,text:MSG_TPL[t.value].text(o)};patchOrder(o.ref,{msgDraft:null});orderSheet(o.ref);return}
   if(t.id==="odMsgTxt"){MSG_DRAFT={ref:t.dataset.ref,tpl:$("#odTpl").value,text:t.value};patchOrder(t.dataset.ref,{msgDraft:t.value});return}
   if(t.id==="odNotes"){patchOrder(t.dataset.ref,{notes:t.value});$("#odSaved").hidden=false}
@@ -4339,6 +4344,10 @@ $("#sheetRoot").addEventListener("click",e=>{
   if(e.target.closest("#odCopy")){const ta=$("#odMsgTxt");const t=ta.value;const done=()=>{e.target.textContent="Copiado"};
     if(navigator.clipboard)navigator.clipboard.writeText(t).then(done,()=>{ta.select();e.target.textContent="Texto seleccionado: Ctrl+C"});else{ta.select()}return}
   if(e.target.closest("#odClear")){const ta=$("#odMsgTxt");ta.value="";const ref=ta.dataset.ref;MSG_DRAFT={ref,tpl:$("#odTpl").value,text:""};patchOrder(ref,{msgDraft:""});ta.focus();return}
+  const om=e.target.closest("#odMail");if(om){const ref=om.dataset.ref,txt=$("#odMsgTxt").value.trim();if(!txt){$("#odMsgTxt").focus();return}
+    om.disabled=true;om.textContent="Enviando…";
+    api("/api/admin/order-mail",{ref,text:txt,tpl:$("#odTpl").value}).then(r=>{patchOrderLocal(ref,{messages:r.messages,msgDraft:null});MSG_DRAFT=null;saved(true);orderSheet(ref)})
+      .catch(x=>{om.disabled=false;om.textContent="Enviar por email";$("#odMailMsg").innerHTML=`<span style="color:var(--danger)">${esc(x.message)}</span>`});return}
   const os=e.target.closest("#odSent");if(os){const ref=os.dataset.ref,txt=$("#odMsgTxt").value.trim();if(!txt){$("#odMsgTxt").focus();return}
     const o=loadOrders().find(x=>x.ref===ref);patchOrder(ref,{messages:[...(o.messages||[]),{date:new Date().toISOString(),text:txt}],msgDraft:null});MSG_DRAFT=null;orderSheet(ref);return}
   const cl=e.target.closest("[data-cl]");if(cl&&!$("#admin").hidden){clientSheet(cl.dataset.cl);return}
