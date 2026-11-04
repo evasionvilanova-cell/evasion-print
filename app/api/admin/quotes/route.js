@@ -5,7 +5,11 @@ import { json, fail, body } from "@/lib/http";
 
 export async function POST(req) {
   if (!(await requireAdmin())) return fail("Inicia sesión en Gestión.", 401);
-  const { list } = await body(req, 4_400_000).catch(() => ({}));
+  const { list, remove } = await body(req, 4_400_000).catch(() => ({}));
+  if (remove) {
+    const r = await q("delete from quotes where ref=$1", [String(remove)]);
+    return r.rowCount ? json({ ok: true }) : fail("No encuentro ese presupuesto.", 404);
+  }
   if (!Array.isArray(list)) return fail("Faltan datos.");
   for (const item of list) {
     if (!item || !item.ref || item.example) continue;

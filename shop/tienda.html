@@ -2527,6 +2527,11 @@ let QFILES=[];
 function loadQuotes(){let q=[];try{q=JSON.parse(STORE.getItem("ep_quotes")||"[]")}catch(e){}
   return [...q,...SEED_QUOTES.filter(x=>!q.find(y=>y.ref===x.ref))].sort((a,b)=>b.date.localeCompare(a.date))}
 function saveQuoteList(list){try{STORE.setItem("ep_quotes",JSON.stringify(list.filter(x=>!x.example||x.touched)))}catch(e){}}
+let QDEL=null;
+document.addEventListener("click",async e=>{const a=e.target.closest("[data-qdel]");if(a){const r=QDEL||a.dataset.qdel;QDEL=a.dataset.qdel||null;quoteSheet(r||QDEL);return}
+  const y=e.target.closest("[data-qdelyes]");if(!y||!IS_ADMIN)return;const ref=y.dataset.qdelyes;y.disabled=true;
+  try{await api("/api/admin/quotes",{remove:ref});BOOT.quotes=(BOOT.quotes||[]).filter(q=>q.ref!==ref);QDEL=null;saved(true);$("#sheetRoot").innerHTML="";renderAdmin("admin-presupuestos")}
+  catch(x){y.disabled=false;saved(false,x.message)}});
 function patchQuote(ref,patch){const all=loadQuotes().map(q=>q.ref===ref?{...q,...patch,touched:true}:q);saveQuoteList(all)}
 function renderQuote(){
   const sess=SESSION, cl=sess&&allClients()[sess.key];
@@ -2640,7 +2645,9 @@ function quoteSheet(ref){
   const row=(l,v)=>v?`<div><div class="label">${l}</div><div>${esc(v)}</div></div>`:"";
   const msg=a.total?`Hola ${q.name.split(" ")[0]}, te enviamos el presupuesto ${q.ref} para ${q.products} (${q.qty}): ${eur(+a.total)} con IVA incluido${a.unit?`, ${a.unit}`:""}. Plazo: ${a.days||"a confirmar"}. ${a.notes?a.notes+" ":""}Si te encaja, responde a este correo y lo dejamos listo para pagar. ¡Gracias!`:"";
   $("#sheetRoot").innerHTML=`<div class="sheet" role="dialog" aria-label="Presupuesto ${q.ref}"><div class="wrap" style="max-width:980px">
-    <div class="row" style="justify-content:space-between"><button class="btn" type="button" data-back>← Presupuestos</button>${q.example?`<span class="tag-ex">solicitud de ejemplo</span>`:""}</div>
+    <div class="row" style="justify-content:space-between"><button class="btn" type="button" data-back>← Presupuestos</button><span class="row" style="gap:8px">${q.example?`<span class="tag-ex">solicitud de ejemplo</span>`:""}
+      ${QDEL===q.ref?`<span class="dim">¿Eliminar ${esc(q.ref)}${q.orderRef?` (ya tiene el pedido ${esc(q.orderRef)}, que no se borra)`:""}?</span><button class="btn" type="button" data-qdelyes="${esc(q.ref)}" style="color:var(--danger);border-color:var(--danger)">Sí, eliminar</button><button class="btn ghost" type="button" data-qdel="">No</button>`
+        :`<button class="btn ghost" type="button" data-qdel="${esc(q.ref)}" style="color:var(--danger)">Eliminar</button>`}</span></div>
     <div class="adm-h" style="margin-top:18px"><div><span class="eyebrow">${q.kind&&q.kind!=="presupuesto"?KIND_L[q.kind]+" · ":""}${dateES(new Date(q.date))}</span><h1 style="font-family:'Instrument Serif',Georgia,serif;font-weight:400;text-transform:none;font-size:48px">${q.ref}</h1></div>
       <label class="field" style="min-width:220px"><span>Estado</span><select id="qStatus" data-ref="${q.ref}">${Object.entries(QST).map(([k,l])=>`<option value="${k}"${q.status===k?" selected":""}>${l}</option>`).join("")}</select></label></div>
     <div class="co">
