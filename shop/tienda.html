@@ -2669,10 +2669,14 @@ function quoteSheet(ref){
           <label class="field"><span>Plazo</span><input type="text" id="qaDays" value="${esc(a.days||"")}" placeholder="p. ej. 8 días laborables"></label>
           <label class="field"><span>Notas para el cliente</span><textarea id="qaNotes" style="font-family:var(--f-body);min-height:60px">${esc(a.notes||"")}</textarea></label>
           <div class="err" id="qaErr" style="color:var(--danger);font-size:13px"></div>
-          <button class="btn primary" type="submit">Guardar y marcar como enviado</button>
+          <button class="btn primary" type="submit">Guardar presupuesto</button>
         </form>
-        ${msg&&!q.converted?`<div class="step"><div class="step-h"><h3>Mensaje para el cliente</h3></div><div class="note" id="qaMsg" style="user-select:all">${esc(msg)}</div>
-          <button class="btn" type="button" id="qaCopy">Copiar mensaje</button><span class="dim">En la web real se envía por email al guardar.</span></div>`:""}
+        ${msg&&!q.converted?`<div class="step"><div class="step-h"><h3>Enviar al cliente</h3>${q.sentAt?`<span class="aside">Enviado ${dshort(q.sentAt)} a ${esc(q.sentTo||"")}</span>`:""}</div>
+          ${BOOT.mail?`<label class="field" style="flex:none"><span>Para (varios separados por comas)</span><input type="text" id="qaTo" value="${esc(quoteTo(q))}"></label>`:""}
+          <label class="field" style="flex:none"><span>Mensaje (edítalo si quieres)</span><textarea id="qaMsg" style="font-family:var(--f-body);min-height:120px">${esc(msg)}</textarea></label>
+          <span class="dim" style="font-size:13px">El email lleva un botón para ver y descargar el presupuesto en PDF${q.client?"; además lo ve en su área y puede aceptarlo y pagarlo":""}.</span>
+          <div class="row" style="gap:8px">${BOOT.mail?`<button class="btn primary" type="button" id="qaSend" data-ref="${esc(q.ref)}">${q.sentAt?"Volver a enviar":"Enviar por email"}</button>`:""}<button class="btn" type="button" id="qaCopy">Copiar mensaje</button></div>
+          <div class="err" id="qaSendErr" style="color:var(--danger);font-size:13px"></div></div>`:""}
         ${a.total?convertBox(q):""}
       </aside>
     </div></div></div>`;
@@ -2715,7 +2719,12 @@ $("#sheetRoot").addEventListener("submit",e=>{if(e.target.id!=="qConvert")return
   if(!ok)$("#qcMsg").insertAdjacentHTML("beforebegin",`<div class="note warn">El logo pesa demasiado para guardarlo en este navegador; en la web real va al servidor.</div>`);
 },true);
 $("#sheetRoot").addEventListener("click",e=>{if(e.target.id==="qcCopy"){navigator.clipboard&&navigator.clipboard.writeText($("#qcMsg").textContent).then(()=>{e.target.textContent="Copiado"},()=>{})}});
-$("#sheetRoot").addEventListener("click",e=>{if(e.target.id==="qaCopy"){navigator.clipboard&&navigator.clipboard.writeText($("#qaMsg").textContent).then(()=>{e.target.textContent="Copiado"},()=>{})}});
+function quoteTo(q){const c=q.client&&allClients()[q.client];return [...new Set([q.email,c&&c.notifyEmail].filter(Boolean))].join(", ")}
+document.addEventListener("click",async e=>{const b=e.target.closest("#qaSend");if(!b)return;const ref=b.dataset.ref;b.disabled=true;b.textContent="Enviando…";$("#qaSendErr").textContent="";
+  try{const r=await api("/api/admin/quote-mail",{ref,text:$("#qaMsg").value,to:$("#qaTo").value});
+    BOOT.quotes=(BOOT.quotes||[]).map(q=>q.ref===ref?r.quote:q);if(!(BOOT.quotes||[]).some(q=>q.ref===ref))BOOT.quotes=[r.quote,...(BOOT.quotes||[])];saved(true);quoteSheet(ref)}
+  catch(x){b.disabled=false;b.textContent="Enviar por email";$("#qaSendErr").textContent=x.message}});
+$("#sheetRoot").addEventListener("click",e=>{if(e.target.id==="qaCopy"){navigator.clipboard&&navigator.clipboard.writeText($("#qaMsg").value).then(()=>{e.target.textContent="Copiado"},()=>{})}});
 
 /* ============ GESTIÓN (tienda) ============ */
 const ST={nuevo:"Nuevo · revisar archivo",incidencia:"Incidencia de archivo",produccion:"En producción",listo:"Listo para entregar",entregado:"Entregado",cancelado:"Cancelado"};

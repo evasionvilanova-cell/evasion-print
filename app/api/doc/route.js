@@ -3,7 +3,7 @@ import { q } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { esc, eur } from "@/lib/mail";
 import { orderLines } from "@/lib/orders";
-import { invoiceToken, invoiceOf } from "@/lib/invoices";
+import { invoiceToken, invoiceOf, quoteToken } from "@/lib/invoices";
 import { safeEqual } from "@/lib/auth";
 
 const SHOP = { name: "Javier Mercadé López", brand: "Evasion Print", nif: "52427223B", addr: "C/ Tetuán, 4", city: "08800 Vilanova i la Geltrú (Barcelona)", tel: "696 356 962", email: "info@evasionprint.com" };
@@ -35,7 +35,8 @@ export async function GET(req) {
   const s = await getSession().catch(() => null);
   if (type === "presupuesto") {
     const qt = (await q("select data from quotes where ref=$1", [ref])).rows[0]?.data;
-    if (!qt || !s || !(s.role === "admin" || (s.role === "client" && qt.client === s.client))) return new Response("No encontrado", { status: 404 });
+    const tq = u.searchParams.get("t");
+    if (!qt || !((tq && safeEqual(tq, quoteToken(ref))) || (s && (s.role === "admin" || (s.role === "client" && qt.client === s.client))))) return new Response("No encontrado", { status: 404 });
     const L = Array.isArray(qt.lines) && qt.lines.length ? qt.lines : [{ name: qt.products || "Presupuesto", qty: 1, unit: +qt.answer?.total || 0, total: +qt.answer?.total || 0 }];
     const total = r2(L.reduce((a, l) => a + (+l.total || 0), 0)), base = r2(total / 1.21), iva = r2(total - base);
     const rows = L.map((l) => `<tr><td>${esc(l.name)}${l.sizes ? `<br><small class="muted">${esc(l.sizes)}</small>` : ""}${(l.parts || l.item?.parts || []).length ? `<br><small class="muted">${esc((l.parts || l.item.parts).join(" · "))}</small>` : ""}</td><td class="r">${l.qty}</td><td class="r">${eur(+l.unit || 0)}</td><td class="r">${eur(+l.total || 0)}</td></tr>`).join("");
