@@ -1283,7 +1283,9 @@ function renderCats(){
   let list=PRODUCTS.filter(p=>!p.off&&(S.cat==="todo"||inCat(p,S.cat)));
   // subcategorías del proveedor dentro de la categoría elegida
   const subs={};if(S.cat!=="todo")list.forEach(p=>(p.subs||[]).forEach(x=>{subs[x]=(subs[x]||0)+1}));
-  const subList=Object.entries(subs).filter(([,n])=>n>1&&n<list.length).sort((a,b)=>b[1]-a[1]).slice(0,14);
+  const mine=(CAT_META[S.cat]||{}).subs||[]; // creadas a mano en Gestión: salen siempre
+  const E=Object.entries(subs).sort((a,b)=>b[1]-a[1]);
+  const subList=[...E.filter(([x,n])=>!mine.includes(x)&&n>1&&n<list.length).slice(0,14),...E.filter(([x])=>mine.includes(x))];
   if(!subList.some(([x])=>x===S.sub))S.sub=null;
   $("#subcats").innerHTML=subList.length?`<button class="chip sm" type="button" data-sub="" aria-pressed="${!S.sub}">Todo ${esc(catLabel(S.cat).toLowerCase())}</button>`+subList.map(([x,n])=>`<button class="chip sm" type="button" data-sub="${esc(x)}" aria-pressed="${S.sub===x}">${esc(x)} <small>${n}</small></button>`).join(""):"";
   if(S.sub)list=list.filter(p=>(p.subs||[]).includes(S.sub));
@@ -3907,6 +3909,9 @@ function prodForm(p){
       <label class="field"><span>Coste de compra (sin IVA)</span><input type="number" step="0.01" min="0" id="npCost" value="${p&&p.cost?(+p.cost).toFixed(2):""}" placeholder="lo que te cuesta a ti"></label>
     </div>
     <small class="dim" id="npMargin" style="margin-top:-6px">${p&&p.cost&&p.price?npMarginText(p.price,p.cost):"Solo lo ves tú: sirve para calcular el beneficio en Rentabilidad y en el Tarificador. Los clientes nunca lo ven."}</small>
+    <div class="npxcats"><div class="label">Subcategorías <small class="dim" style="text-transform:none;letter-spacing:0">(los filtros que salen dentro de la categoría, p. ej. Mochilas)</small></div>
+      <div class="checks" id="npSubs">${npSubsHTML(p?p.cat:CATS[1]&&CATS[1][0],p?p.subs||[]:[])}</div>
+      <input type="text" id="npSubNew" placeholder="Nueva subcategoría (si hay varias, sepáralas con comas)" style="margin-top:6px;max-width:420px"></div>
     <div class="npxcats"><div class="label">También aparece en <small class="dim" style="text-transform:none;letter-spacing:0">(opcional: categorías extra además de la principal)</small></div>
       <div class="checks">${CATS.slice(1).map(([k,l])=>`<label${p&&p.cat===k?' hidden':''} data-npxk="${esc(k)}"><input type="checkbox" class="npX" value="${esc(k)}"${p&&p.cat!==k&&(p.cats||[]).includes(k)?" checked":""}> ${esc(l)}</label>`).join("")}</div></div>
     <div class="row" style="justify-content:space-between"><div class="label">Colores disponibles · <span id="npCount">${sel.length}</span> marcados</div>
@@ -3946,6 +3951,10 @@ const tagOk=p=>!ADM_TAG||(ADM_TAG==="__feat"?isFeat(p):ADM_TAG==="__none"?!Strin
 const isOrphan=p=>!CATS.slice(1).some(([k])=>inCat(p,k));
 // margen de la prenda sola: precio de venta (IVA incl.) frente al coste (sin IVA)
 function npMarginText(price,cost){const net=price/1.21,m=net-cost;return `Margen de la prenda sin estampar: ${eur(m)} por unidad (${net?(m/net*100).toFixed(0):0} % sobre la venta sin IVA). Los clientes nunca ven el coste.`}
+// subcategorías que ya se usan en una categoría (para marcarlas en la ficha)
+function npSubsHTML(cat,sel){const m={};PRODUCTS.filter(p=>inCat(p,cat)).forEach(p=>(p.subs||[]).forEach(x=>m[x]=(m[x]||0)+1));(sel||[]).forEach(x=>{if(!(x in m))m[x]=0});
+  const L=Object.entries(m).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]));
+  return L.length?L.map(([x,n])=>`<label><input type="checkbox" class="npSub" value="${esc(x)}"${(sel||[]).includes(x)?" checked":""}> ${esc(x)} <small class="dim">${n}</small></label>`).join(""):`<small class="dim">Esta categoría aún no tiene subcategorías: escribe una abajo.</small>`}
 function admProdList(all){const q=ADM_Q.trim().toLowerCase();const ci=k=>{const i=CATS.findIndex(c=>c[0]===k);return i<0?999:i};
   let l=PRODUCTS.map((p,i)=>[p,i]).filter(([p])=>(!q||(p.name+" "+(p.ref||"")).toLowerCase().includes(q))&&(!ADM_NOPH||(!p.off&&!photoCount(p)))&&(!ADM_CAT||(ADM_CAT==="__orphan"?isOrphan(p):inCat(p,ADM_CAT)))&&(!ADM_SUB||(p.subs||[]).includes(ADM_SUB))&&(!ADM_VIS||(ADM_VIS==="on"?!p.off:!!p.off))&&tagOk(p)).sort((a,b)=>ci(a[0].cat)-ci(b[0].cat)||a[1]-b[1]).map(x=>x[0]);
   if(all)return l.map(x=>Array.isArray(x)?x[0]:x);if(EDIT_PID&&EDIT_PID!=="__new"){const e=prodById(EDIT_PID);if(e&&!l.slice(0,ADM_LIM).includes(e))l=[e,...l]}return l.slice(0,ADM_LIM)}
@@ -4240,8 +4249,9 @@ $("#admin").addEventListener("submit",e=>{
     const pickedS=[...document.querySelectorAll(".npS:checked")].filter(x=>groups.includes(x.dataset.g)).map(x=>x.value);
     const allS=SIZE_GROUPS.filter(g=>groups.includes(g.id)).flatMap(g=>g.sizes);
     if(groups.length&&!pickedS.length){$("#npErr").textContent="Deja marcada al menos una talla.";return}
-    const data={sizeList:pickedS.length===allS.length?null:pickedS,minQty:Math.max(0,parseInt($("#npMin").value)||0),cat:$("#npCat").value,name,shape:$("#npShape").value,price,colors,sizes:groups,sport:$("#npSport").checked,tag:$("#npTag").value.trim(),featured:$("#npFeat").checked,cost:Math.max(0,parseFloat($("#npCost").value)||0)||null,cats:[...new Set([$("#npCat").value,...[...document.querySelectorAll(".npX:checked")].map(x=>x.value).filter(v=>v!==$("#npCat").value)])],featAt:$("#npFeat").checked?((prodById(EDIT_PID)||{}).featAt||Date.now()):0};
+    const data={sizeList:pickedS.length===allS.length?null:pickedS,minQty:Math.max(0,parseInt($("#npMin").value)||0),cat:$("#npCat").value,name,shape:$("#npShape").value,price,colors,sizes:groups,sport:$("#npSport").checked,tag:$("#npTag").value.trim(),featured:$("#npFeat").checked,_newSubs:$("#npSubNew").value.split(",").map(x=>x.trim()).filter(Boolean).map(x=>x.charAt(0).toUpperCase()+x.slice(1)),subs:[...new Set([...[...document.querySelectorAll(".npSub:checked")].map(x=>x.value),...$("#npSubNew").value.split(",").map(x=>x.trim()).filter(Boolean).map(x=>x.charAt(0).toUpperCase()+x.slice(1))])],cost:Math.max(0,parseFloat($("#npCost").value)||0)||null,cats:[...new Set([$("#npCat").value,...[...document.querySelectorAll(".npX:checked")].map(x=>x.value).filter(v=>v!==$("#npCat").value)])],featAt:$("#npFeat").checked?((prodById(EDIT_PID)||{}).featAt||Date.now()):0};
     {const old=(e.target.dataset.edit&&prodById(e.target.dataset.edit)||{}).info||{}, comp=$("#npComp").value.trim();
+     if(data._newSubs.length){const m=CAT_META[data.cat]={...(CAT_META[data.cat]||{})};m.subs=[...new Set([...(m.subs||[]),...data._newSubs])];saveCatMeta()}delete data._newSubs;
      data.desc=$("#npDesc").value.trim();
      data.info={...old,comp,gsm:(comp.match(/(\d{2,3})\s*g\/m/)||[])[1]||"",pack:+$("#npPack").value||0,box:+$("#npBox").value||0,taric:$("#npTaric").value.trim(),origin:$("#npOrigin").value.trim(),
        obs:$("#npObs").value.split("\n").map(s=>s.trim()).filter(Boolean)};}
@@ -4375,7 +4385,7 @@ $("#admin").addEventListener("change",e=>{
   if(t.dataset.chex2!=null){PALETTE=PALETTE.map((x,i)=>i===+t.dataset.chex2?[x[0],x[1],x[2],t.value]:x);savePalette();renderCats();$("#attrSaved").hidden=false}
   if(t.dataset.cname!=null){const v=t.value.trim();if(v){PALETTE=PALETTE.map((x,i)=>i===+t.dataset.cname?[x[0],v,x[2]]:x);savePalette();$("#attrSaved").hidden=false}}
   if(t.dataset.glabel!=null){const v=t.value.trim();if(v){SIZE_GROUPS[+t.dataset.glabel].label=v;saveSizes();$("#attrSaved").hidden=false}}
-  if(t.id==="npCat"){document.querySelectorAll("[data-npxk]").forEach(l=>{const on=l.dataset.npxk===t.value;l.hidden=on;if(on)l.querySelector("input").checked=false})}
+  if(t.id==="npCat"){const keep=[...document.querySelectorAll(".npSub:checked")].map(x=>x.value);$("#npSubs").innerHTML=npSubsHTML(t.value,keep);document.querySelectorAll("[data-npxk]").forEach(l=>{const on=l.dataset.npxk===t.value;l.hidden=on;if(on)l.querySelector("input").checked=false})}
   if(t.classList&&t.classList.contains("npC")){$("#npCount").textContent=document.querySelectorAll(".npC:checked").length}
   if(t.dataset.pon){const p=PRODUCTS.find(x=>x.id===t.dataset.pon);p.off=!t.checked;CATALOG_X[p.id]={...(CATALOG_X[p.id]||{}),off:p.off};saveCatalog();renderCats();t.nextElementSibling.textContent=p.off?"Oculta":"Visible"}
 });
