@@ -46,7 +46,9 @@ export async function GET() {
     boot.invoices = await listInvoices();
     boot.mail = !!process.env.RESEND_API_KEY;
     boot.orders = o.rows.map(orderForShop);
-    o.rows.forEach((r) => { if (r.state && Object.keys(r.state).length) boot.ostate[r.ref] = r.state; });
+    // las miniaturas solo se usan en los PDF: al navegador le basta saber cuáles ya están hechas
+    const lite = (st) => (st && st.mocks ? { ...st, mocks: Object.fromEntries(Object.keys(st.mocks).map((k) => [k, 1])) } : st);
+    o.rows.forEach((r) => { if (r.state && Object.keys(r.state).length) boot.ostate[r.ref] = lite(r.state); });
     const qs = await q("select data from quotes order by created_at desc limit 1000");
     boot.quotes = qs.rows.map((r) => r.data);
   } else if (role === "client") {
@@ -59,7 +61,7 @@ export async function GET() {
       [session.client]);
     // los costes son solo para Gestión
     const noCost = (items) => (items || []).map(({ cost, ...i }) => i);
-    boot.myOrders = o.rows.map((r) => { const x = { ...orderForShop(r), ...(r.state || {}), invoice: r.invoice || null }; x.items = noCost(x.items); return x; });
+    boot.myOrders = o.rows.map((r) => { const { mocks, ...st } = r.state || {}; const x = { ...orderForShop(r), ...st, invoice: r.invoice || null }; x.items = noCost(x.items); return x; });
     const mq = await q("select data from quotes where data->>'client'=$1 and data->>'status' in ('enviado','aceptado') and data ? 'answer' order by created_at desc limit 200", [session.client]);
     boot.myInvoices = (await q("select number,kind,refs,status,rect_of,client,data,created_at,sent_at from invoices where client=$1 or refs && (select coalesce(array_agg(ref),'{}') from orders where client=$1) order by created_at desc limit 500", [session.client])).rows.map(invoiceForShop).map(({ token, ...x }) => x);
     boot.myQuotes = mq.rows.map((r) => { const { lineCosts, ...x } = r.data; return x; }).filter((x) => x.answer && x.answer.total);

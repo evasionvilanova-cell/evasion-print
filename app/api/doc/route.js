@@ -76,7 +76,8 @@ export async function GET(req) {
     if (!ok) return new Response("No encontrado", { status: 404 });
     const b = inv.data.billing || {}, L = inv.data.lines || [], R = inv.kind === "R";
     const total = r2(L.reduce((a, l) => a + l.total, 0)), base = r2(total / 1.21), iva = r2(total - base);
-    const rows = L.map((l) => { const bl = r2(l.total / 1.21); return `<tr><td>${esc(l.d)}${l.sub ? `<br><small class="muted">${esc(l.sub)}</small>` : ""}</td><td class="r">${l.qty}</td><td class="r">${eur(r2(bl / (l.qty || 1)))}</td><td class="r">21 %</td><td class="r">${eur(bl)}</td></tr>`; }).join("");
+    const anyMock = L.some((l) => l.mock);
+    const rows = L.map((l) => { const bl = r2(l.total / 1.21); return `<tr>${anyMock ? `<td class="th">${l.mock ? cleanSvg(l.mock.front) + cleanSvg(l.mock.back || "") : ""}</td>` : ""}<td>${esc(l.d)}${l.sub ? `<br><small class="muted">${esc(l.sub)}</small>` : ""}</td><td class="r">${l.qty}</td><td class="r">${eur(r2(bl / (l.qty || 1)))}</td><td class="r">21 %</td><td class="r">${eur(bl)}</td></tr>`; }).join("");
     const refs = inv.refs || [inv.ref];
     const pay = inv.data.pay;
     const payTxt = pay === "transfer" ? "transferencia bancaria" : pay === "bizum" || pay === "bizum_tienda" ? "Bizum" : pay === "efectivo" ? "efectivo" : pay === "tpv" ? "tarjeta (TPV tienda)" : pay === "pendiente" ? "según acuerdo" : "tarjeta";
@@ -87,9 +88,9 @@ export async function GET(req) {
       ${inv.status === "anulada" && !R ? `<div style="border:2px solid #b42318;color:#b42318;font-weight:700;padding:8px 12px;margin-top:14px;text-align:center">FACTURA ANULADA por factura rectificativa</div>` : ""}
       <div class="cols">${issuer}<div><div class="lbl">Cliente</div><b>${esc(b.name)}</b><br>NIF/CIF ${esc(b.cif)}<br>${esc(b.addr)}<br>${esc(b.zip)} ${esc(b.city)}${b.province ? ` (${esc(b.province)})` : ""}</div></div>
       ${R ? `<p><b>Motivo de la rectificación:</b> ${esc(inv.data.reason || "")}${inv.data.mode === "total" ? " (anulación total)" : ""}</p>` : ""}
-      <table><thead><tr><th>Concepto</th><th class="r">Ud</th><th class="r">Precio ud</th><th class="r">IVA</th><th class="r">Base</th></tr></thead><tbody>${rows}</tbody></table>
+      <table><thead><tr>${anyMock ? "<th></th>" : ""}<th>Concepto</th><th class="r">Ud</th><th class="r">Precio ud</th><th class="r">IVA</th><th class="r">Base</th></tr></thead><tbody>${rows}</tbody></table>
       <div class="tot"><div><span>Base imponible</span><span>${eur(base)}</span></div><div><span>IVA 21 %</span><span>${eur(iva)}</span></div><div class="big"><span>Total</span><span>${eur(total)}</span></div></div>
-      <div class="foot">${R ? "Factura rectificativa emitida conforme al art. 15 del Reglamento de facturación (RD 1619/2012)." : `Forma de pago: ${payTxt}${paid ? " · Pagada" : " · Pendiente de pago"}.`}</div>`), HTML);
+      <div class="foot">${R ? "Factura rectificativa emitida conforme al art. 15 del Reglamento de facturación (RD 1619/2012)." : `Forma de pago: ${payTxt}${paid ? " · Pagada" : " · Pendiente de pago"}.`}</div>`, anyMock ? fontLink() : ""), HTML);
   }
   const r = (await q("select ref,client,paid,pay,total,data,state,created_at from orders where ref=$1", [ref])).rows[0];
   const allowed = r && s && (s.role === "admin" || (s.role === "client" && r.client === s.client));
@@ -100,19 +101,21 @@ export async function GET(req) {
   const base = r2(total / 1.21), iva = r2(total - base);
   if (type === "albaran") {
     const st = (o.status === "entregado") ? "Entregado" : "Pendiente de entrega";
-    const rows = L.map((l) => `<tr><td>${esc(l.d)}${l.sub ? `<br><small class="muted">${esc(l.sub)}</small>` : ""}</td><td class="r">${l.qty}</td><td class="r">${eur(l.total)}</td></tr>`).join("");
+    const anyMock = L.some((l) => l.mock);
+    const rows = L.map((l) => `<tr>${anyMock ? `<td class="th">${l.mock ? cleanSvg(l.mock.front) + cleanSvg(l.mock.back || "") : ""}</td>` : ""}<td>${esc(l.d)}${l.sub ? `<br><small class="muted">${esc(l.sub)}</small>` : ""}</td><td class="r">${l.qty}</td><td class="r">${eur(l.total)}</td></tr>`).join("");
     const inv = await invoiceOf(ref);
     return new Response(page(`Albarán ${ref}`, `${head("Albarán", `<div class="r"><b>Nº ${esc(ref)}</b><br>Fecha: ${dES(r.created_at)}<br>${st}${inv ? `<br>Factura: ${esc(inv)}` : ""}</div>`)}
       <div class="cols">${issuer}<div><div class="lbl">Cliente</div><b>${esc(o.company || o.name)}</b>${o.company ? `<br>${esc(o.name)}` : ""}<br>${esc(o.email || "")}<br>${esc(o.tel || "")}<br>${o.ship === "envio" ? `Entrega en: ${esc(o.addr)}` : "Recogida en tienda"}</div></div>
-      <table><thead><tr><th>Concepto</th><th class="r">Ud</th><th class="r">Importe (IVA incl.)</th></tr></thead><tbody>${rows}</tbody></table>
+      <table><thead><tr>${anyMock ? "<th></th>" : ""}<th>Concepto</th><th class="r">Ud</th><th class="r">Importe (IVA incl.)</th></tr></thead><tbody>${rows}</tbody></table>
       <div class="tot"><div class="big"><span>Total con IVA</span><span>${eur(total)}</span></div><div class="muted"><span>IVA incluido</span><span>${eur(iva)}</span></div></div>
-      <div style="display:flex;gap:24px;margin-top:40px"><div style="flex:1;border-top:1px solid #15171c;padding-top:6px" class="muted">Recibí conforme (nombre, DNI y firma)</div><div style="flex:1;border-top:1px solid #15171c;padding-top:6px" class="muted">Fecha de entrega</div></div>`), HTML);
+      <div style="display:flex;gap:24px;margin-top:40px"><div style="flex:1;border-top:1px solid #15171c;padding-top:6px" class="muted">Recibí conforme (nombre, DNI y firma)</div><div style="flex:1;border-top:1px solid #15171c;padding-top:6px" class="muted">Fecha de entrega</div></div>`, anyMock ? fontLink() : ""), HTML);
   }
-  const rows = L.map((l) => `<tr><td>${esc(l.d)}${l.sub ? `<br><small class="muted">${esc(l.sub)}</small>` : ""}</td><td class="r">${l.qty}</td><td class="r">${eur(l.total)}</td></tr>`).join("");
+  const anyMock = L.some((l) => l.mock);
+  const rows = L.map((l) => `<tr>${anyMock ? `<td class="th">${l.mock ? cleanSvg(l.mock.front) + cleanSvg(l.mock.back || "") : ""}</td>` : ""}<td>${esc(l.d)}${l.sub ? `<br><small class="muted">${esc(l.sub)}</small>` : ""}</td><td class="r">${l.qty}</td><td class="r">${eur(l.total)}</td></tr>`).join("");
   return new Response(page(`Pedido ${ref}`, `${head("Pedido", `<div class="r"><b>${esc(ref)}</b><br>Fecha: ${dES(r.created_at)}</div>`)}
     <div class="cols">${issuer}<div><div class="lbl">Cliente</div><b>${esc(o.company || o.name)}</b>${o.company ? `<br>${esc(o.name)}` : ""}<br>${esc(o.email)}<br>${esc(o.tel)}<br>${o.ship === "envio" ? `Envío a: ${esc(o.addr)}` : "Recogida en tienda"}</div></div>
-    <table><thead><tr><th>Concepto</th><th class="r">Ud</th><th class="r">Importe (IVA incl.)</th></tr></thead><tbody>${rows}</tbody></table>
+    <table><thead><tr>${anyMock ? "<th></th>" : ""}<th>Concepto</th><th class="r">Ud</th><th class="r">Importe (IVA incl.)</th></tr></thead><tbody>${rows}</tbody></table>
     <div class="tot"><div class="big"><span>Total con IVA</span><span>${eur(total)}</span></div><div class="muted"><span>IVA incluido</span><span>${eur(iva)}</span></div></div>
-    <div class="foot">Este documento no es una factura. Puedes generar la factura desde tu área de cliente.</div>`),
+    <div class="foot">Este documento no es una factura. Puedes generar la factura desde tu área de cliente.</div>`, anyMock ? fontLink() : ""),
     { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
 }

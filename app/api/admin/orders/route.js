@@ -11,7 +11,13 @@ export async function POST(req) {
   if (ref && patch && patch.pay && ["pendiente", "transfer", "efectivo", "tpv", "bizum_tienda"].includes(patch.pay)) await q("update orders set pay=$2 where ref=$1 and pay not in ('card','bizum')", [ref, patch.pay]);
   if (ref && patch && Number.isFinite(+patch.total) && patch.total !== undefined) await q("update orders set total=$2 where ref=$1", [ref, Math.round(+patch.total * 100) / 100]);
   if (!ref || !patch || typeof patch !== "object") return fail("Faltan datos.");
-  const r = await q("update orders set state = state || $2::jsonb where ref=$1 returning ref", [ref, JSON.stringify(patch)]);
+  // las miniaturas se añaden a las que ya hay (el navegador solo manda las nuevas)
+  const { mocks, ...rest } = patch;
+  const r = await q("update orders set state = coalesce(state,'{}'::jsonb) || $2::jsonb where ref=$1 returning ref", [ref, JSON.stringify(rest)]);
+  if (r.rowCount && mocks && typeof mocks === "object") {
+    const clean = Object.fromEntries(Object.entries(mocks).filter(([, v]) => v && typeof v === "object" && typeof v.front === "string" && v.front.length < 120000).slice(0, 60));
+    if (Object.keys(clean).length) await q("update orders set state = jsonb_set(coalesce(state,'{}'::jsonb), '{mocks}', coalesce(state->'mocks','{}'::jsonb) || $2::jsonb) where ref=$1", [ref, JSON.stringify(clean)]);
+  }
   if (!r.rowCount) return fail("No encuentro ese pedido.", 404);
   if (patch.status) await q("update orders set status=$2 where ref=$1", [ref, String(patch.status)]);
   return json({ ok: true });

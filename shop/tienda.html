@@ -2930,8 +2930,13 @@ function msgBox(o,auto){
   </div>`;
 }
 let MSG_DRAFT=null;
+// miniaturas de las prendas del pedido para la hoja de pedido, el albarán y la factura
+function newOrderMocks(o){const have=o.mocks||{},m={};(o.items||[]).forEach((it,k)=>{const key=it.id||k;if(it.design&&!have[key]){const x=lineMocks(it,"o"+String(o.ref).replace(/\W/g,"")+k);if(x)m[key]=x}});return m}
+async function ensureOrderMocksNow(o){if(!IS_ADMIN)return;const m=newOrderMocks(o);if(!Object.keys(m).length)return;
+  const marks={...(o.mocks||{})};Object.keys(m).forEach(k=>marks[k]=1);patchOrderLocal(o.ref,{mocks:marks});try{await api("/api/admin/orders",{ref:o.ref,patch:{mocks:m}})}catch(e){}}
+function ensureOrderMocks(o){ensureOrderMocksNow(o)}
 function orderSheet(ref){
-  const o=loadOrders().find(x=>x.ref===ref); if(!o)return;
+  const o=loadOrders().find(x=>x.ref===ref); if(!o)return;ensureOrderMocks(o);
   const units=o.items.reduce((a,i)=>a+i.qty,0);
   const nextBtn={nuevo:["produccion","Archivo correcto → a producción"],incidencia:["produccion","Archivo corregido → a producción"],produccion:["listo","Marcar como listo"],listo:["entregado","Marcar como entregado"]}[o.status];
   const msg={listo:`Hola ${o.name.split(" ")[0]}, tu pedido ${o.ref} ya está listo${o.ship==="tienda"?" para recoger en Evasion Running (Vilanova i la Geltrú)":" y sale hoy hacia tu dirección"}. ¡Gracias!`,
@@ -3507,7 +3512,7 @@ document.addEventListener("input",e=>{if(e.target.id==="facQ"){FAC.q=e.target.va
 document.addEventListener("submit",async e=>{const f=e.target;if(!["facSendF","facRectF","facBillF"].includes(f.id))return;e.preventDefault();
   const btn=f.querySelector("button[type=submit]"),err=f.querySelector(".err");btn.disabled=true;err.textContent="";
   try{
-    if(f.id==="facBillF"){const refs=FAC.sel.slice(),r=await api("/api/admin/invoices",{action:"create",refs,billing:readBilling("fb")});BOOT.invoices=r.invoices;
+    if(f.id==="facBillF"){for(const o of loadOrders().filter(o=>FAC.sel.includes(o.ref)))await ensureOrderMocksNow(o);const refs=FAC.sel.slice(),r=await api("/api/admin/invoices",{action:"create",refs,billing:readBilling("fb")});BOOT.invoices=r.invoices;
       (BOOT.orders||[]).forEach(o=>{if(refs.includes(o.ref))o.invoice=r.number});FAC.sel=[];FAC.bill=false;FAC.tab="facturas";FAC.send=r.number;saved(true);admFact();return}
     if(f.id==="facRectF"){const mode=(f.querySelector("input[name=frMode]:checked")||{}).value,n=f.dataset.n;
       const r=await api("/api/admin/invoices",{action:"rectify",number:n,mode,amount:+$("#frAmt").value||0,reason:$("#frWhy").value});BOOT.invoices=r.invoices;
