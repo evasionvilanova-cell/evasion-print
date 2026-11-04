@@ -21,6 +21,7 @@ export async function POST(req) {
     <div style="font-weight:900;font-size:22px;letter-spacing:.02em;margin:8px 0 18px">EVASION <i style="font-family:Georgia,serif;font-weight:400">Print</i></div>
     <p style="font-size:15px;white-space:pre-wrap">${esc(t)}</p>
     <p><a href="${link}" style="display:inline-block;background:#15171c;color:#fff;padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:700">Ver el presupuesto${total ? " · " + eur(total) : ""}</a></p>
+    <p style="font-size:12px;color:#6b7078">Si el botón no funciona, copia este enlace en el navegador:<br><a href="${link}" style="color:#1846d1;word-break:break-all">${link}</a></p>
     ${qt.client ? `<p style="font-size:13px;color:#6b7078">También lo tienes en tu área de cliente de evasionprint.com, donde puedes aceptarlo y pagarlo.</p>` : ""}
     <p style="color:#6b7078;font-size:12px;margin-top:28px">Evasion Print · C/ Tetuán, 4 · 08800 Vilanova i la Geltrú · 696 356 962 · info@evasionprint.com</p></div>`;
   const sent = await sendMail({ to: list, replyTo: process.env.SHOP_EMAIL || "info@evasionprint.com", subject: `Presupuesto ${qt.ref} · Evasion Print`, html });
