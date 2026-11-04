@@ -2660,8 +2660,13 @@ function quoteSheet(ref){
       </div>
       <aside style="display:flex;flex-direction:column;gap:12px">
         ${q.kind==="alta"?`<div class="step"><div class="step-h"><h3>Alta de área</h3></div><p class="dim" style="margin:0">Crea su área con los datos de la solicitud y envíale el acceso.</p><button class="btn dark" type="button" data-altaclient="${q.ref}">Crear su área de cliente</button></div>`:""}
-        <div class="step"><div class="step-h"><h3>Cliente</h3></div><div><b>${esc(q.company||q.name)}</b>${q.company?`<br><small style="color:var(--muted)">${esc(q.name)}</small>`:""}</div>
-          <div class="cpy">${esc(q.email)}</div>${q.tel?`<div class="cpy">${esc(q.tel)}</div>`:""}</div>
+        ${(()=>{const c=q.client&&allClients()[q.client],u=c&&(c.users||[])[0];
+          if(c)return `<div class="step"><div class="step-h"><h3>Cliente</h3><button class="linkbtn" type="button" data-cl="${esc(q.client)}">Ver ficha</button></div><div><b>${esc(c.name)}</b>${u&&u.name?`<br><small style="color:var(--muted)">${esc(u.name)}</small>`:""}</div>
+            <div class="cpy">${esc(u?u.email:q.email)}</div>${c.notifyEmail?`<div class="cpy">${esc(c.notifyEmail)} <small class="dim">(avisos y facturas)</small></div>`:""}${c.contact||q.tel?`<div class="cpy">${esc(c.contact||q.tel)}</div>`:""}
+            <small class="dim">Datos actuales de su área; se cambian en su ficha → Editar.</small></div>`;
+          return `<div class="step"><div class="step-h"><h3>Cliente</h3></div><div><b>${esc(q.company||q.name)}</b>${q.company?`<br><small style="color:var(--muted)">${esc(q.name)}</small>`:""}</div>
+            <div class="row" style="gap:6px;align-items:center"><input type="email" id="qEmail" value="${esc(q.email||"")}" aria-label="Email del cliente" style="flex:1"><button class="btn" type="button" id="qEmailSave" data-ref="${esc(q.ref)}">Guardar</button></div>
+            ${q.tel?`<div class="cpy">${esc(q.tel)}</div>`:""}</div>`})()}
         <form class="step" id="qAnswer" data-ref="${q.ref}" novalidate>
           <div class="step-h"><h3>Tu presupuesto</h3></div>
           <label class="field"><span>Importe total con IVA</span><input type="number" step="0.01" min="0" id="qaTotal" value="${a.total||""}"></label>
@@ -2719,7 +2724,9 @@ $("#sheetRoot").addEventListener("submit",e=>{if(e.target.id!=="qConvert")return
   if(!ok)$("#qcMsg").insertAdjacentHTML("beforebegin",`<div class="note warn">El logo pesa demasiado para guardarlo en este navegador; en la web real va al servidor.</div>`);
 },true);
 $("#sheetRoot").addEventListener("click",e=>{if(e.target.id==="qcCopy"){navigator.clipboard&&navigator.clipboard.writeText($("#qcMsg").textContent).then(()=>{e.target.textContent="Copiado"},()=>{})}});
-function quoteTo(q){const c=q.client&&allClients()[q.client];return [...new Set([q.email,c&&c.notifyEmail].filter(Boolean))].join(", ")}
+function quoteTo(q){const c=q.client&&allClients()[q.client],u=c&&(c.users||[])[0];return [...new Set([c?(u&&u.email)||q.email:q.email,c&&c.notifyEmail].filter(Boolean))].join(", ")}
+document.addEventListener("click",e=>{const b=e.target.closest("#qEmailSave");if(!b)return;const v=$("#qEmail").value.trim().toLowerCase();
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)){$("#qEmail").focus();return}patchQuote(b.dataset.ref,{email:v});saved(true);quoteSheet(b.dataset.ref)});
 document.addEventListener("click",async e=>{const b=e.target.closest("#qaSend");if(!b)return;const ref=b.dataset.ref;b.disabled=true;b.textContent="Enviando…";$("#qaSendErr").textContent="";
   try{const r=await api("/api/admin/quote-mail",{ref,text:$("#qaMsg").value,to:$("#qaTo").value});
     BOOT.quotes=(BOOT.quotes||[]).map(q=>q.ref===ref?r.quote:q);if(!(BOOT.quotes||[]).some(q=>q.ref===ref))BOOT.quotes=[r.quote,...(BOOT.quotes||[])];saved(true);quoteSheet(ref)}
