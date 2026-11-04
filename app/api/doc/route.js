@@ -3,6 +3,7 @@ import { q } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { esc, eur } from "@/lib/mail";
 import { orderLines } from "@/lib/orders";
+import { shopHtml } from "@/lib/shop";
 import { invoiceToken, invoiceOf, quoteToken } from "@/lib/invoices";
 import { safeEqual } from "@/lib/auth";
 
@@ -10,8 +11,21 @@ const SHOP = { name: "Javier Mercadé López", brand: "Evasion Print", nif: "524
 const r2 = (n) => Math.round(n * 100) / 100;
 const dES = (d) => new Date(d).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Madrid" });
 
-function page(title, inner) {
-  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title>
+// miniaturas SVG guardadas en el presupuesto: solo se aceptan dibujos (sin scripts ni eventos)
+function cleanSvg(x) {
+  const t = String(x || "");
+  if (!/^<svg[\s>]/.test(t) || !t.endsWith("</svg>") || t.length > 120000) return "";
+  if (/<script|<foreignObject|<iframe|\son\w+\s*=|javascript:|<style/i.test(t)) return "";
+  if (/href="(?!https:\/\/|data:image\/|#)/i.test(t)) return "";
+  return t;
+}
+let FONT_LINK;
+function fontLink() {
+  if (FONT_LINK === undefined) { const m = shopHtml().match(/<link[^>]+fonts\.googleapis\.com\/css2[^>]+>/); FONT_LINK = m ? m[0] : ""; }
+  return FONT_LINK + `<style>@font-face{font-family:"EP Liga";src:url("/fonts/ep-liga.ttf") format("truetype")}</style>`;
+}
+function page(title, inner, extraHead = "") {
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title>${extraHead}
 <style>
 body{font:14px/1.45 Arial,Helvetica,sans-serif;color:#15171c;margin:0;background:#eceef1}
 .doc{max-width:800px;margin:24px auto;background:#fff;padding:40px;box-shadow:0 2px 14px rgba(0,0,0,.08)}
@@ -22,6 +36,7 @@ h1{font-size:22px;margin:0 0 4px;text-align:right}.muted{color:#6b7078}
 table{width:100%;border-collapse:collapse;margin-top:8px}th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#6b7078;border-bottom:1px solid #d9dce1;padding:6px 4px}
 td{padding:8px 4px;border-bottom:1px solid #eceef1;vertical-align:top}.r{text-align:right;white-space:nowrap}
 .tot{margin-left:auto;width:300px;margin-top:14px}.tot div{display:flex;justify-content:space-between;padding:4px 0}.tot .big{font-weight:700;font-size:17px;border-top:2px solid #15171c;padding-top:8px}
+.th{width:170px;white-space:nowrap}.th svg{width:76px;height:84px;background:#f5f6f8;border-radius:4px;margin-right:4px;vertical-align:top}
 .foot{margin-top:28px;font-size:11px;color:#6b7078}
 .bar{max-width:800px;margin:16px auto 0;display:flex;gap:8px;justify-content:flex-end}.bar button{font:600 14px Arial;padding:10px 16px;border-radius:999px;border:0;background:#15171c;color:#fff;cursor:pointer}
 @media print{body{background:#fff}.doc{box-shadow:none;margin:0;max-width:none;padding:0}.bar{display:none}}
@@ -39,12 +54,13 @@ export async function GET(req) {
     if (!qt || !((tq && safeEqual(tq, quoteToken(ref))) || (s && (s.role === "admin" || (s.role === "client" && qt.client === s.client))))) return new Response("No encontrado", { status: 404 });
     const L = Array.isArray(qt.lines) && qt.lines.length ? qt.lines : [{ name: qt.products || "Presupuesto", qty: 1, unit: +qt.answer?.total || 0, total: +qt.answer?.total || 0 }];
     const total = r2(L.reduce((a, l) => a + (+l.total || 0), 0)), base = r2(total / 1.21), iva = r2(total - base);
-    const rows = L.map((l) => `<tr><td>${esc(l.name)}${l.sizes ? `<br><small class="muted">${esc(l.sizes)}</small>` : ""}${(l.parts || l.item?.parts || []).length ? `<br><small class="muted">${esc((l.parts || l.item.parts).join(" · "))}</small>` : ""}</td><td class="r">${l.qty}</td><td class="r">${eur(+l.unit || 0)}</td><td class="r">${eur(+l.total || 0)}</td></tr>`).join("");
+    const anyMock = L.some((l) => l.mock);
+    const rows = L.map((l) => `<tr>${anyMock ? `<td class="th">${l.mock ? cleanSvg(l.mock.front) + cleanSvg(l.mock.back || "") : ""}</td>` : ""}<td>${esc(l.name)}${l.sizes ? `<br><small class="muted">${esc(l.sizes)}</small>` : ""}${(l.parts || l.item?.parts || []).length ? `<br><small class="muted">${esc((l.parts || l.item.parts).join(" · "))}</small>` : ""}</td><td class="r">${l.qty}</td><td class="r">${eur(+l.unit || 0)}</td><td class="r">${eur(+l.total || 0)}</td></tr>`).join("");
     return new Response(page(`Presupuesto ${ref}`, `<div class="top"><div><div class="brand">EVASION <i>Print</i></div><div class="muted">${SHOP.brand}</div></div><div><h1>Presupuesto</h1><div class="r"><b>${esc(ref)}</b><br>Fecha: ${dES(qt.answer?.date || qt.date)}${qt.validUntil ? `<br>Válido hasta: ${dES(qt.validUntil + "T12:00:00Z")}` : ""}</div></div></div>
       <div class="cols"><div><div class="lbl">Emisor</div><b>${SHOP.name}</b><br>NIF ${SHOP.nif}<br>${SHOP.addr}<br>${SHOP.city}<br>${SHOP.tel} · ${SHOP.email}</div><div><div class="lbl">Cliente</div><b>${esc(qt.company || qt.name)}</b>${qt.company && qt.name ? `<br>${esc(qt.name)}` : ""}<br>${esc(qt.email || "")}${qt.tel ? `<br>${esc(qt.tel)}` : ""}</div></div>
-      <table><thead><tr><th>Concepto</th><th class="r">Ud</th><th class="r">Precio ud</th><th class="r">Importe</th></tr></thead><tbody>${rows}</tbody></table>
+      <table><thead><tr>${anyMock ? "<th></th>" : ""}<th>Concepto</th><th class="r">Ud</th><th class="r">Precio ud</th><th class="r">Importe</th></tr></thead><tbody>${rows}</tbody></table>
       <div class="tot"><div class="big"><span>Total con IVA</span><span>${eur(total)}</span></div><div class="muted"><span>Base imponible</span><span>${eur(base)}</span></div><div class="muted"><span>IVA 21 %</span><span>${eur(iva)}</span></div></div>
-      <div class="foot">${qt.answer?.days ? `Plazo: ${esc(qt.answer.days)}. ` : ""}${qt.answer?.notes ? esc(qt.answer.notes) + " " : ""}Precios con IVA incluido. Envío no incluido salvo que se indique.</div>`),
+      <div class="foot">${qt.answer?.days ? `Plazo: ${esc(qt.answer.days)}. ` : ""}${qt.answer?.notes ? esc(qt.answer.notes) + " " : ""}Precios con IVA incluido. Envío no incluido salvo que se indique.</div>`, anyMock ? fontLink() : ""),
       { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
   }
   const head = (title, right) => `<div class="top"><div><div class="brand">EVASION <i>Print</i></div><div class="muted">${SHOP.brand}</div></div><div><h1>${title}</h1>${right}</div></div>`;

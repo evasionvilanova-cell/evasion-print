@@ -2640,8 +2640,28 @@ function convertBox(q){
     <button class="btn primary" type="submit">Crear producto en su área</button>
   </form>`;
 }
+/* miniatura de la prenda en SVG (para los PDF de presupuesto): prenda + logos + textos + nombres y números */
+function mockSVG(it,side,uid){const d=it.design,p=prodById(d.pid)||{shape:it.shape,colors:[d.color]};const W=400,H=440,px=v=>(+v).toFixed(1);
+  let h=prodSVG(p,d.color,side,uid);
+  (d.els||[]).filter(e=>e.side===side).forEach(e=>{
+    if(e.kind==="logo"){const src=PH[e.file]||e.src||"";const w=e.w*CM/100*W,hh=w*(e.ar||1),x=e.x/100*W-w/2,y=e.y/100*H-hh/2;
+      if(!src||(src.startsWith("data:")&&src.length>60000)){h+=`<rect x="${px(x)}" y="${px(y)}" width="${px(w)}" height="${px(hh)}" fill="none" stroke="#b3261e" stroke-dasharray="4 3"/>`;return}
+      if(oneColor(e.tech)&&e.recolor){const m=PH[e.mask]||src,id=uid+"m"+Math.random().toString(36).slice(2,7);
+        h+=`<mask id="${id}" style="mask-type:alpha"><image href="${esc(m)}" x="${px(x)}" y="${px(y)}" width="${px(w)}" height="${px(hh)}" preserveAspectRatio="xMidYMid meet"/></mask><rect x="${px(x)}" y="${px(y)}" width="${px(w)}" height="${px(hh)}" fill="${vinyl(e.recolor)[2]}" mask="url(#${id})"/>`}
+      else h+=`<image href="${esc(src)}" x="${px(x)}" y="${px(y)}" width="${px(w)}" height="${px(hh)}" preserveAspectRatio="xMidYMid meet"/>`}
+    else{const v=vinyl(e.vinyl);h+=`<text x="${px(e.x/100*W)}" y="${px(e.y/100*H)}" text-anchor="middle" dominant-baseline="central" font-family="${esc(ff(e.font))}" font-weight="${fontOf(e.font).w}" font-size="${px(e.h*CM*1.38/100*W)}" fill="${v[2]}">${esc(e.text)}</text>`}});
+  const T=d.team;if(T&&T.on!==false){const r=(it.roster||[]).find(r=>r.name||r.num)||{name:"NOMBRE",num:"10"},v=vinyl(T.vinyl),f=esc(ff(T.style||"block")),fw=fontOf(T.style||"block").w;
+    const t=(L,txt,ls)=>`<text x="${px(L.x/100*W)}" y="${px(L.y/100*H)}" text-anchor="middle" dominant-baseline="central" font-family="${f}" font-weight="${fw}" font-size="${px(L.h*CM*1.38/100*W)}" fill="${v[2]}"${ls?' letter-spacing="2"':""}>${esc(txt)}</text>`;
+    if(side==="back"){if(T.name&&r.name)h+=t(TL(T,"name"),r.name,1);if(T.numB&&r.num)h+=t(TL(T,"numB"),r.num)}else if(T.numF&&r.num)h+=t(TL(T,"numF"),r.num)}
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}">${h}</svg>`}
+function lineMocks(it,uid){if(!it||!it.design)return null;const sides=["front"];if((it.design.els||[]).some(e=>e.side==="back")||(it.design.team&&it.design.team.on))sides.push("back");
+  const o={};sides.forEach(sd=>o[sd]=mockSVG(it,sd,uid+sd));return o}
+// guarda en el presupuesto las miniaturas de sus líneas (las usa el PDF)
+async function ensureQuoteMocks(q){if(!IS_ADMIN||!Array.isArray(q.lines))return q;let ch=false;
+  const lines=q.lines.map((l,i)=>{if(l.item&&l.item.design&&!l.mock){const m=lineMocks(l.item,"q"+q.ref.replace(/\W/g,"")+i);if(m){ch=true;return {...l,mock:m}}}return l});
+  if(!ch)return q;const nq={...q,lines};BOOT.quotes=(BOOT.quotes||[]).map(x=>x.ref===q.ref?nq:x);try{await api("/api/admin/quotes",{list:[nq]})}catch(e){}return nq}
 function quoteSheet(ref){
-  const q=loadQuotes().find(x=>x.ref===ref); if(!q)return; const a=q.answer||{};
+  const q=loadQuotes().find(x=>x.ref===ref); if(!q)return;if(q.lines&&q.lines.some(l=>l.item&&l.item.design&&!l.mock))ensureQuoteMocks(q); const a=q.answer||{};
   const row=(l,v)=>v?`<div><div class="label">${l}</div><div>${esc(v)}</div></div>`:"";
   const msg=a.total?`Hola ${q.name.split(" ")[0]}, te enviamos el presupuesto ${q.ref} para ${q.products} (${q.qty}): ${eur(+a.total)} con IVA incluido${a.unit?`, ${a.unit}`:""}. Plazo: ${a.days||"a confirmar"}. ${a.notes?a.notes+" ":""}Si te encaja, responde a este correo y lo dejamos listo para pagar. ¡Gracias!`:"";
   $("#sheetRoot").innerHTML=`<div class="sheet" role="dialog" aria-label="Presupuesto ${q.ref}"><div class="wrap" style="max-width:980px">
@@ -2728,7 +2748,7 @@ function quoteTo(q){const c=q.client&&allClients()[q.client],u=c&&(c.users||[])[
 document.addEventListener("click",e=>{const b=e.target.closest("#qEmailSave");if(!b)return;const v=$("#qEmail").value.trim().toLowerCase();
   if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)){$("#qEmail").focus();return}patchQuote(b.dataset.ref,{email:v});saved(true);quoteSheet(b.dataset.ref)});
 document.addEventListener("click",async e=>{const b=e.target.closest("#qaSend");if(!b)return;const ref=b.dataset.ref;b.disabled=true;b.textContent="Enviando…";$("#qaSendErr").textContent="";
-  try{const r=await api("/api/admin/quote-mail",{ref,text:$("#qaMsg").value,to:$("#qaTo").value});
+  try{const q0=loadQuotes().find(q=>q.ref===ref);if(q0)await ensureQuoteMocks(q0);const r=await api("/api/admin/quote-mail",{ref,text:$("#qaMsg").value,to:$("#qaTo").value});
     BOOT.quotes=(BOOT.quotes||[]).map(q=>q.ref===ref?r.quote:q);if(!(BOOT.quotes||[]).some(q=>q.ref===ref))BOOT.quotes=[r.quote,...(BOOT.quotes||[])];saved(true);quoteSheet(ref)}
   catch(x){b.disabled=false;b.textContent="Enviar por email";$("#qaSendErr").textContent=x.message}});
 $("#sheetRoot").addEventListener("click",e=>{if(e.target.id==="qaCopy"){navigator.clipboard&&navigator.clipboard.writeText($("#qaMsg").value).then(()=>{e.target.textContent="Copiado"},()=>{})}});
