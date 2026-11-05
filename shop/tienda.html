@@ -2983,7 +2983,8 @@ function orderSheet(ref){
             return `<form class="invform" data-invref="${o.ref}" data-insheet="1" novalidate style="margin-top:10px;display:flex;flex-direction:column;gap:8px"><div class="label">Datos de la factura</div>${billingFields(b,"iv")}
             <p class="dim" style="margin:0;font-size:13px">Una vez generada no se puede cambiar.</p><div class="err" id="ivErr" style="color:var(--danger);font-size:14px"></div>
             <div class="row" style="gap:8px"><button class="btn primary" type="submit">Generar y descargar</button><button class="btn ghost" type="button" data-invadm="">Cancelar</button></div></form>`})():""}
-          ${!["card","bizum"].includes(o.pay)?`<div>${esc(PAYL[o.pay]||o.pay)} · <b class="mono">${eur(o.total)}</b> · ${o.paid?`<span class="st listo">Cobrado</span>`:`<span class="st incidencia">Pendiente de cobro</span> <button class="btn" type="button" data-paidref="${o.ref}" style="padding:3px 10px;font-size:13px">Marcar como cobrado</button>`}</div>`
+          ${!["card","bizum"].includes(o.pay)?`<div class="row" style="gap:8px;align-items:center;flex-wrap:wrap"><select id="odPay" data-ref="${o.ref}" aria-label="Forma de pago" style="max-width:220px">${["pendiente","transfer","efectivo","tpv","bizum_tienda"].map(k=>`<option value="${k}"${o.pay===k?" selected":""}>${PAYL[k]}</option>`).join("")}</select> · <b class="mono">${eur(o.total)}</b> · ${o.paid?`<span class="st listo">Cobrado</span>`:`<span class="st incidencia">Pendiente de cobro</span> <button class="btn" type="button" data-paidref="${o.ref}" style="padding:3px 10px;font-size:13px">Marcar como cobrado</button>`}</div>
+            ${o.pay==="transfer"&&!o.paid?`<small class="dim">En la hoja de pedido, el albarán y la factura saldrán los datos para la transferencia${RATES.iban?"":` · <b style="color:var(--danger)">falta poner tu IBAN en Gestión → Tarifas</b>`}.</small>`:""}`
             :`<div>Pagado con ${o.pay==="bizum"?"Bizum":"tarjeta"} · <b class="mono">${eur(o.total)}</b></div>`}</div>
         ${(o.refunds||[]).length?`<div class="step"><div class="step-h"><h3>Devoluciones</h3></div>
           ${o.refunds.map(r=>`<div class="row" style="justify-content:space-between;gap:8px"><span style="flex:1;min-width:0">${esc(r.label)}<br><small class="dim">${dshort(r.date)} · ${r.done?"devuelto":"pendiente"}</small></span><b class="mono">−${eur(r.amount)}</b></div>`).join("")}
@@ -4481,6 +4482,8 @@ window.addEventListener("resize",()=>{if(TOUR)tourShow()});
 /* hojas (pedido, cliente) */
 $("#sheetRoot").addEventListener("change",e=>{
   const t=e.target;
+  if(t.id==="odPay"){const ref=t.dataset.ref;patchOrderLocal(ref,{pay:t.value});const bo=(BOOT.orders||[]).find(x=>x.ref===ref);if(bo)bo.pay=t.value;
+    api("/api/admin/orders",{ref,patch:{pay:t.value}}).then(()=>saved(true)).catch(x=>saved(false,x.message));orderSheet(ref);return}
   if(t.id==="odStatus"){patchOrder(t.dataset.ref,{status:t.value,msgDraft:null});MSG_DRAFT=null;orderSheet(t.dataset.ref);
     // el mensaje al cliente queda preparado con la plantilla del estado nuevo
     if(MSG_TPL[t.value])setTimeout(()=>{const b=$("#odMsgTxt");if(b){b.closest(".step").scrollIntoView({block:"center",behavior:"smooth"});b.classList.add("phflash");setTimeout(()=>b.classList.remove("phflash"),1600)}},50)}
